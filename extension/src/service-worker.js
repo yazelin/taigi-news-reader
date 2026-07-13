@@ -266,6 +266,10 @@ async function runQueue(id, {
   } catch (error) {
     if (id !== runId || error?.name === "AbortError") return;
     await transition({ type: "ERROR", error: error?.message || "朗讀失敗。" }, id);
+  } finally {
+    if (!cachedAudio) {
+      await chrome.runtime.sendMessage({ target: "sidepanel", type: "QUOTA_CHANGED" }).catch(() => {});
+    }
   }
 }
 

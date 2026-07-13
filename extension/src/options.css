@@ -21,6 +21,7 @@ button { padding: 10px 18px; background: #fff; color: #173b25; font-weight: 800;
 .hint { color: #405347; font-size: .9rem; }
 #status { padding: 13px; margin-top: 18px; border: 2px solid #285580; border-radius: 9px; background: #edf6ff; color: #173e65; font-weight: 800; }
 #status.error { border-color: #852727; background: #fff0f0; color: #681919; }
+.quota-status { padding: 13px; margin-top: 12px; border: 2px solid #315b3b; border-radius: 9px; background: #eef6f0; color: #19482a; font-weight: 800; }
 button:focus-visible, input:focus-visible { outline: 4px solid #ffbf00; outline-offset: 2px; }
 [hidden] { display: none !important; }
 @media (max-width: 520px) { .actions { flex-direction: column; } }

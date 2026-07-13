@@ -15,6 +15,7 @@ test("options page keeps the private tester invite code masked and explains loca
   assert.equal(input.autocomplete, "off");
   assert.equal(input.getAttribute("spellcheck"), "false");
   assert.equal(input.maxLength, 512);
+  assert.equal(document.getElementById("quotaStatus").hidden, true);
   assert.match(document.getElementById("inviteCodeHint").textContent, /只會保存在這個 Chrome 使用者設定檔/);
   assert.match(document.querySelector(".privacy").textContent, /供應商金鑰只放在伺服器/);
   assert.match(document.querySelector(".privacy").textContent, /不會寫入朗讀記錄或音訊/);
@@ -30,6 +31,8 @@ test("recommended service asks for an invite code instead of automatically savin
   assert.match(script, /chrome\.storage\.local\.set\(\{ \[SETTINGS_KEY\]: \{ backendUrl, accessToken, accessTokenOrigin \} \}\)/);
   assert.match(script, /backendInput\.addEventListener\("input", clearInviteCodeForChangedOrigin\)/);
   assert.match(script, /舊邀請碼已從欄位清除/);
+  assert.match(script, /formatAccessQuota\(quota\)/);
+  assert.match(script, /parseAccessQuota\(await response\.json\(\)\)/);
   assert.doesNotMatch(script, /chrome\.storage\.session/);
 });
 

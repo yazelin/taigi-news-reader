@@ -8,6 +8,7 @@ const {
   endpoint
 } = require("./lib/settings");
 const { createBackendFetch } = require("./lib/backend-fetch");
+const { formatAccessQuota, parseAccessQuota } = require("./lib/access-status");
 
 const backendInput = document.getElementById("backendUrl");
 const inviteCodeInput = document.getElementById("inviteCode");
@@ -15,6 +16,7 @@ const recommendedButton = document.getElementById("recommendedButton");
 const saveButton = document.getElementById("saveButton");
 const clearButton = document.getElementById("clearButton");
 const status = document.getElementById("status");
+const quotaStatus = document.getElementById("quotaStatus");
 let inviteCodeOrigin = "";
 const trustedStorageReady = chrome.storage.local.setAccessLevel
   ? chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
@@ -32,6 +34,16 @@ function setStatus(message, error = false) {
   status.textContent = message;
   status.className = error ? "error" : "";
   status.hidden = !message;
+}
+
+function showQuota(quota, fallback = "這個服務未提供個人每日額度資訊。") {
+  quotaStatus.textContent = formatAccessQuota(quota) || fallback;
+  quotaStatus.hidden = false;
+}
+
+function hideQuota() {
+  quotaStatus.textContent = "";
+  quotaStatus.hidden = true;
 }
 
 function candidateBackendFetch(backendUrl, accessToken) {
@@ -60,6 +72,11 @@ async function verifyAccess(backendUrl, accessToken) {
       throw new Error("邀請碼無效、已撤銷或不屬於這個服務。");
     }
     if (!response.ok) throw new Error(`語音服務驗證失敗（HTTP ${response.status}）。`);
+    try {
+      return parseAccessQuota(await response.json());
+    } catch {
+      return null;
+    }
   } catch (error) {
     if (error?.name === "AbortError") throw new Error("語音服務驗證逾時，請確認網路後再試一次。");
     if (error?.name === "TypeError") throw new Error("無法安全連上語音服務，請確認網址與 HTTPS 設定。");
@@ -97,6 +114,7 @@ async function save() {
   recommendedButton.disabled = true;
   clearButton.disabled = true;
   setStatus("正在驗證網址與私人測試邀請碼…");
+  hideQuota();
   let newlyGrantedOrigin = "";
   let saved = false;
   try {
@@ -115,7 +133,7 @@ async function save() {
     if (!granted) throw new Error("未取得連線權限，因此沒有儲存設定。");
     if (!alreadyGranted) newlyGrantedOrigin = origins[0];
 
-    await verifyAccess(backendUrl, accessToken);
+    const quota = await verifyAccess(backendUrl, accessToken);
     const changed = previous?.backendUrl !== backendUrl || previous?.accessToken !== accessToken;
     const cleanupComplete = !changed || await prepareSettingsChange();
     await chrome.storage.local.set({ [SETTINGS_KEY]: { backendUrl, accessToken, accessTokenOrigin } });
@@ -126,6 +144,7 @@ async function save() {
     backendInput.value = backendUrl;
     inviteCodeInput.value = accessToken;
     inviteCodeOrigin = accessTokenOrigin;
+    showQuota(quota);
     setStatus(cleanupComplete
       ? "邀請碼有效，私人測試服務已儲存並可使用。"
       : "邀請碼有效且設定已儲存；舊的背景工作可能尚待伺服器自動清理。", !cleanupComplete);
@@ -157,6 +176,7 @@ async function clear() {
     backendInput.value = "";
     inviteCodeInput.value = "";
     inviteCodeOrigin = "";
+    hideQuota();
     const originRemoved = await removeOrigin(current?.backendUrl);
     setStatus(cleanupComplete && originRemoved
       ? "服務網址與本機邀請碼已清除，連線權限也已撤銷。"
@@ -174,6 +194,7 @@ saveButton.addEventListener("click", save);
 recommendedButton.addEventListener("click", () => {
   backendInput.value = RECOMMENDED_BACKEND_URL;
   clearInviteCodeForChangedOrigin();
+  hideQuota();
   setStatus("已填入建議服務網址。請輸入測試管理者提供的邀請碼，再按「同意並儲存、測試」。");
   inviteCodeInput.focus();
 });
@@ -191,6 +212,7 @@ function clearInviteCodeForChangedOrigin() {
   if (!inviteCodeInput.value || currentBackendOrigin() === inviteCodeOrigin) return;
   inviteCodeInput.value = "";
   inviteCodeOrigin = "";
+  hideQuota();
   setStatus("服務網域已變更。為避免洩漏，舊邀請碼已從欄位清除；請輸入新網域的邀請碼。", true);
 }
 
@@ -206,9 +228,14 @@ ensureTrustedStorage().then(() => chrome.storage.local.get(SETTINGS_KEY)).then((
   if (settings.accessToken && settings.accessTokenOrigin === configuredOrigin) {
     inviteCodeInput.value = settings.accessToken;
     inviteCodeOrigin = configuredOrigin;
+    showQuota(null, "正在讀取今日個人額度…");
+    verifyAccess(settings.backendUrl, settings.accessToken)
+      .then((quota) => showQuota(quota))
+      .catch(() => showQuota(null, "目前無法讀取今日個人額度，請稍後再試。"));
   } else {
     inviteCodeInput.value = "";
     inviteCodeOrigin = "";
+    hideQuota();
     if (settings.accessToken || settings.accessTokenOrigin) {
       chrome.storage.local.set({ [SETTINGS_KEY]: { backendUrl: settings.backendUrl || "" } }).catch(() => {});
     }

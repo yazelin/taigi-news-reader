@@ -36,6 +36,7 @@ fieldset { margin: 13px 0; border: 2px solid #879389; border-radius: 9px; }
 .confirm-note { padding: 10px; border-left: 5px solid #da8b00; background: #fff5d7; }
 .message { padding: 12px; margin-bottom: 16px; border-radius: 9px; border: 2px solid #852727; background: #fff0f0; color: #681919; font-weight: 800; line-height: 1.5; }
 .message.info { border-color: #285580; background: #edf6ff; color: #173e65; }
+.quota-status { padding: 11px; margin-bottom: 16px; border: 2px solid #315b3b; border-radius: 9px; background: #eef6f0; color: #19482a; font-weight: 800; line-height: 1.5; }
 .muted { color: #45564a; font-size: .9rem; }
 .progress { padding: 12px; background: #e9f2eb; border-radius: 9px; font-weight: 800; }
 .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }

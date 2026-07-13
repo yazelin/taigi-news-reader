@@ -1,3 +1,5 @@
+const { quotaLimitMessage } = require("./access-status");
+
 function abortError() {
   const error = new Error("Synthesis job was cancelled.");
   error.name = "AbortError";
@@ -175,7 +177,7 @@ function createSynthesisJobClient({
   async function requestJson(url, options, signal) {
     const { response, body } = await requestWithBody(url, options, signal);
     if (!response.ok) {
-      const error = new Error(errorText(body, response.status));
+      const error = new Error(quotaLimitMessage(response) || errorText(body, response.status));
       error.status = response.status;
       throw error;
     }

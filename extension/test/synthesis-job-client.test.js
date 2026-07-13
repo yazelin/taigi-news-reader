@@ -9,10 +9,11 @@ function endpointFor(base, route) {
   return `${base}${route}`;
 }
 
-function response(status, body = {}) {
+function response(status, body = {}, headerValues = {}) {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: new Headers(headerValues),
     async json() { return body; }
   };
 }
@@ -113,6 +114,41 @@ test("creates, polls, parses, and deletes a completed synthesis job", async () =
   assert.deepEqual(delays, [1_000]);
   assert.deepEqual(created, [{ jobId: "job one", backendUrl: "https://tts.example", token: 7 }]);
   assert.deepEqual(cleared, created);
+});
+
+test("maps daily and temporary job-creation 429 responses to safe Traditional Chinese guidance", async () => {
+  const reset = String(Date.parse("2026-07-14T00:00:00Z") / 1_000);
+  const daily = createSynthesisJobClient({
+    endpointFor,
+    async fetchImpl() {
+      return response(429, { detail: "internal quota body must not be shown" }, {
+        "X-RateLimit-Scope": "subject_jobs",
+        "X-RateLimit-Reset": reset,
+        "Retry-After": "3600"
+      });
+    }
+  });
+  await assert.rejects(
+    daily.synthesize({ backendUrl: "https://tts.example", text: "新聞", rate: 1 }),
+    {
+      status: 429,
+      message: "你的今日私人測試額度已用完。可於 2026/07/14 00:00 UTC 後再試。"
+    }
+  );
+
+  const busy = createSynthesisJobClient({
+    endpointFor,
+    async fetchImpl() {
+      return response(429, { detail: "too many active jobs" }, {
+        "X-RateLimit-Scope": "active_jobs",
+        "Retry-After": "5"
+      });
+    }
+  });
+  await assert.rejects(
+    busy.synthesize({ backendUrl: "https://tts.example", text: "新聞", rate: 1 }),
+    { status: 429, message: "目前同時朗讀的工作較多，請約 5 秒後再試。" }
+  );
 });
 
 test("preserves a failed job's original error when DELETE cleanup also fails", async () => {

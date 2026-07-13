@@ -3,6 +3,7 @@ const { SETTINGS_KEY, endpoint, originPermission, storedAccessToken } = require(
 const { initialState } = require("./lib/player-state");
 const { describeService } = require("./lib/backend-identity");
 const { createBackendFetch } = require("./lib/backend-fetch");
+const { formatAccessQuota, parseAccessQuota } = require("./lib/access-status");
 
 const backendFetch = createBackendFetch({
   fetchImpl: (...args) => fetch(...args),
@@ -11,7 +12,7 @@ const backendFetch = createBackendFetch({
 });
 
 const elements = Object.fromEntries([
-  "message", "setupCard", "setupButton", "settingsButton", "extractButton", "previewCard", "title",
+  "message", "quotaStatus", "setupCard", "setupButton", "settingsButton", "extractButton", "previewCard", "title",
   "sourceChooser", "preview", "textStats", "rate", "startButton", "playerCard", "progress",
   "pauseButton", "resumeButton", "stopButton", "replayButton", "replayService", "replayEnabled", "historyEmpty",
   "historyList", "clearHistoryButton", "clearButton"
@@ -35,6 +36,17 @@ function showSetup(show, reason = "") {
   if (show && reason) showMessage(reason);
 }
 
+function showQuota(body) {
+  const message = formatAccessQuota(parseAccessQuota(body));
+  elements.quotaStatus.textContent = message;
+  elements.quotaStatus.hidden = !message;
+}
+
+function hideQuota() {
+  elements.quotaStatus.textContent = "";
+  elements.quotaStatus.hidden = true;
+}
+
 async function getSettings() {
   try {
     await trustedStorageReady;
@@ -46,6 +58,7 @@ async function getSettings() {
 }
 
 async function checkBackend() {
+  hideQuota();
   let settings;
   try {
     settings = await getSettings();
@@ -76,6 +89,11 @@ async function checkBackend() {
         return false;
       }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      try {
+        showQuota(await response.json());
+      } catch {
+        hideQuota();
+      }
     } finally {
       clearTimeout(timer);
     }
@@ -362,6 +380,7 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.target === "sidepanel" && message.type === "STATE") renderPlayer(message.state);
   if (message.target === "sidepanel" && message.type === "NOTICE") showMessage(message.message, "info");
   if (message.target === "sidepanel" && message.type === "HISTORY_CHANGED") loadReplayHistory();
+  if (message.target === "sidepanel" && message.type === "QUOTA_CHANGED") checkBackend();
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {

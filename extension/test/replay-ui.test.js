@@ -15,7 +15,17 @@ test("side panel exposes an explicit local-only replay opt-in and clear controls
   assert.match(document.querySelector(".privacy-note").textContent, /不保存新聞全文、網址或 API key/);
   assert.equal(document.getElementById("replayButton").textContent.trim(), "重新播放");
   assert.equal(document.getElementById("clearHistoryButton").textContent.trim(), "清除所有重播記錄");
+  assert.equal(document.getElementById("quotaStatus").hidden, true);
   assert.notEqual(document.getElementById("clearButton"), document.getElementById("clearHistoryButton"));
+});
+
+test("side panel displays only parsed per-user quota and refreshes it after remote work", () => {
+  const script = fs.readFileSync(path.join(__dirname, "..", "src", "sidepanel.js"), "utf8");
+  const worker = fs.readFileSync(path.join(__dirname, "..", "src", "service-worker.js"), "utf8");
+
+  assert.match(script, /formatAccessQuota\(parseAccessQuota\(body\)\)/);
+  assert.match(script, /message\.type === "QUOTA_CHANGED"/);
+  assert.match(worker, /if \(!cachedAudio\)[\s\S]*type: "QUOTA_CHANGED"/);
 });
 
 test("cached START and history replay are not gated on a backend health request", () => {
