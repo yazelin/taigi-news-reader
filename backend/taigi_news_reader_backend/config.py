@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 import re
 from urllib.parse import urlsplit
@@ -59,11 +59,17 @@ class Settings:
     mms_device: str = "cpu"
     mms_timeout_seconds: float = 180.0
     openai_base_url: str | None = None
-    openai_api_key: str | None = None
+    openai_api_key: str | None = field(default=None, repr=False)
     openai_model: str | None = None
     openai_timeout_seconds: float = 45.0
+    gemini_base_url: str = (
+        "https://generativelanguage.googleapis.com/v1beta/openai/"
+    )
+    gemini_api_key: str | None = field(default=None, repr=False)
+    gemini_model: str = "gemini-3.5-flash"
+    gemini_timeout_seconds: float = 45.0
     remote_tts_url: str | None = None
-    remote_tts_api_key: str | None = None
+    remote_tts_api_key: str | None = field(default=None, repr=False)
     remote_tts_timeout_seconds: float = 180.0
     max_audio_bytes: int = 25 * 1024 * 1024
     max_text_chars: int = 5_000
@@ -74,9 +80,13 @@ class Settings:
     def __post_init__(self) -> None:
         if self.provider_mode not in {"concrete", "mock"}:
             raise ValueError("provider_mode must be 'concrete' or 'mock'")
-        if self.translator_provider not in {"ollama", "openai_compatible"}:
+        if self.translator_provider not in {
+            "ollama",
+            "openai_compatible",
+            "gemini",
+        }:
             raise ValueError(
-                "translator_provider must be 'ollama' or 'openai_compatible'"
+                "translator_provider must be 'ollama', 'openai_compatible', or 'gemini'"
             )
         if self.tts_provider not in {"mms", "remote"}:
             raise ValueError("tts_provider must be 'mms' or 'remote'")
@@ -99,6 +109,20 @@ class Settings:
                     )
                 _validate_secret_bearing_url(
                     self.openai_base_url, name="openai_base_url"
+                )
+            if self.translator_provider == "gemini":
+                if not self.gemini_api_key or not self.gemini_api_key.strip():
+                    raise ValueError(
+                        "Gemini translation requires TAIGI_GEMINI_API_KEY"
+                    )
+                if not self.gemini_model or not self.gemini_model.strip():
+                    raise ValueError("Gemini translation requires a model")
+                if not 1 <= self.gemini_timeout_seconds <= 300:
+                    raise ValueError(
+                        "gemini_timeout_seconds must be between 1 and 300"
+                    )
+                _validate_secret_bearing_url(
+                    self.gemini_base_url, name="gemini_base_url"
                 )
             if self.tts_provider == "remote":
                 if not self.remote_tts_url:
@@ -141,6 +165,17 @@ class Settings:
             openai_model=os.getenv("TAIGI_OPENAI_MODEL") or None,
             openai_timeout_seconds=_get_float(
                 "TAIGI_OPENAI_TIMEOUT_SECONDS", 45, minimum=1, maximum=300
+            ),
+            gemini_base_url=os.getenv(
+                "TAIGI_GEMINI_BASE_URL",
+                "https://generativelanguage.googleapis.com/v1beta/openai/",
+            ),
+            gemini_api_key=os.getenv("TAIGI_GEMINI_API_KEY") or None,
+            gemini_model=os.getenv(
+                "TAIGI_GEMINI_MODEL", "gemini-3.5-flash"
+            ),
+            gemini_timeout_seconds=_get_float(
+                "TAIGI_GEMINI_TIMEOUT_SECONDS", 45, minimum=1, maximum=300
             ),
             remote_tts_url=os.getenv("TAIGI_REMOTE_TTS_URL") or None,
             remote_tts_api_key=os.getenv("TAIGI_REMOTE_TTS_API_KEY") or None,

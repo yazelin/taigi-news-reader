@@ -22,6 +22,68 @@ def test_hosted_translation_fails_startup_validation_when_unconfigured():
         Settings(translator_provider="openai_compatible")
 
 
+def test_gemini_requires_key_only_when_selected():
+    assert Settings().gemini_api_key is None
+    with pytest.raises(ValueError, match="TAIGI_GEMINI_API_KEY"):
+        Settings(translator_provider="gemini")
+    assert Settings(
+        provider_mode="mock", translator_provider="gemini"
+    ).translator_provider == "gemini"
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"gemini_api_key": "   "}, "TAIGI_GEMINI_API_KEY"),
+        ({"gemini_api_key": "test-key", "gemini_model": "  "}, "model"),
+        (
+            {"gemini_api_key": "test-key", "gemini_timeout_seconds": 0},
+            "between 1 and 300",
+        ),
+        (
+            {"gemini_api_key": "test-key", "gemini_timeout_seconds": 301},
+            "between 1 and 300",
+        ),
+    ],
+)
+def test_gemini_direct_settings_reject_invalid_credentials_and_timeout(
+    overrides, message
+):
+    with pytest.raises(ValueError, match=message):
+        Settings(translator_provider="gemini", **overrides)
+
+
+def test_settings_repr_never_contains_provider_keys():
+    settings = Settings(
+        openai_api_key="openai-secret-marker",
+        gemini_api_key="gemini-secret-marker",
+        remote_tts_api_key="tts-secret-marker",
+    )
+
+    rendered = repr(settings)
+    assert "openai-secret-marker" not in rendered
+    assert "gemini-secret-marker" not in rendered
+    assert "tts-secret-marker" not in rendered
+
+
+def test_gemini_environment_defaults(monkeypatch):
+    monkeypatch.setenv("TAIGI_PROVIDER_MODE", "concrete")
+    monkeypatch.setenv("TAIGI_TRANSLATOR_PROVIDER", "gemini")
+    monkeypatch.setenv("TAIGI_TTS_PROVIDER", "mms")
+    monkeypatch.setenv("TAIGI_GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("TAIGI_GEMINI_BASE_URL", raising=False)
+    monkeypatch.delenv("TAIGI_GEMINI_MODEL", raising=False)
+    monkeypatch.delenv("TAIGI_GEMINI_TIMEOUT_SECONDS", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.gemini_base_url == (
+        "https://generativelanguage.googleapis.com/v1beta/openai/"
+    )
+    assert settings.gemini_model == "gemini-3.5-flash"
+    assert settings.gemini_timeout_seconds == 45
+
+
 def test_remote_tts_fails_startup_validation_when_unconfigured():
     with pytest.raises(ValueError, match="TAIGI_REMOTE_TTS_URL"):
         Settings(tts_provider="remote")
@@ -40,6 +102,11 @@ def test_remote_tts_fails_startup_validation_when_unconfigured():
             "tts_provider": "remote",
             "remote_tts_url": "http://tts.example/synthesize",
             "remote_tts_api_key": "secret",
+        },
+        {
+            "translator_provider": "gemini",
+            "gemini_base_url": "http://generativelanguage.googleapis.com/v1beta/openai/",
+            "gemini_api_key": "secret",
         },
     ],
 )

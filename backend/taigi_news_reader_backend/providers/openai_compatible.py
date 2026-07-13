@@ -20,11 +20,11 @@ GROQ_GPT_OSS_MODELS = frozenset(
 class _EmptyTranslationError(ProviderError):
     """An otherwise valid completion response contained no translation text."""
 
-    def __init__(self, finish_reason: str | None) -> None:
+    def __init__(self, provider_label: str, finish_reason: str | None) -> None:
         self.finish_reason = finish_reason
         suffix = f" (finish_reason={finish_reason})" if finish_reason else ""
         super().__init__(
-            "OpenAI-compatible provider returned an empty translation" + suffix
+            f"{provider_label} returned an empty translation" + suffix
         )
 
 
@@ -58,6 +58,10 @@ class OpenAICompatibleTranslator:
     def name(self) -> str:
         return f"openai-compatible:{self.model}"
 
+    @property
+    def _provider_label(self) -> str:
+        return "OpenAI-compatible provider"
+
     async def translate(self, text: str) -> str:
         prompt = (
             "Translate the following JSON string containing a Traditional "
@@ -78,13 +82,13 @@ class OpenAICompatibleTranslator:
                 first_reason = first_empty.finish_reason or "unavailable"
                 retry_reason = retry_empty.finish_reason or "unavailable"
                 raise ProviderError(
-                    "OpenAI-compatible provider returned an empty translation "
+                    f"{self._provider_label} returned an empty translation "
                     "twice after one retry "
                     f"(finish_reason: first={first_reason}, retry={retry_reason})"
                 ) from retry_empty
         try:
             return normalize_and_validate_mms_poj(
-                translation, provider="OpenAI-compatible provider"
+                translation, provider=self._provider_label
             )
         except ProviderError:
             repair_prompt = (
@@ -97,11 +101,11 @@ class OpenAICompatibleTranslator:
             )
             try:
                 return normalize_and_validate_mms_poj(
-                    repaired, provider="OpenAI-compatible provider"
+                    repaired, provider=self._provider_label
                 )
             except ProviderError as exc:
                 raise ProviderError(
-                    "OpenAI-compatible provider failed to produce MMS-compatible "
+                    f"{self._provider_label} failed to produce MMS-compatible "
                     "POJ after one repair attempt"
                 ) from exc
 
@@ -134,16 +138,20 @@ class OpenAICompatibleTranslator:
             translation = choice["message"]["content"]
             finish_reason = _safe_finish_reason(choice.get("finish_reason"))
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
-            raise ProviderError("OpenAI-compatible translation request failed") from exc
+            raise ProviderError(
+                f"{self._provider_label} translation request failed"
+            ) from exc
         if translation is None:
-            raise _EmptyTranslationError(finish_reason)
+            raise _EmptyTranslationError(self._provider_label, finish_reason)
         if not isinstance(translation, str):
-            raise ProviderError("OpenAI-compatible provider returned no translation")
+            raise ProviderError(f"{self._provider_label} returned no translation")
         translation = OllamaTranslator._clean_response(translation)
         if not translation:
-            raise _EmptyTranslationError(finish_reason)
+            raise _EmptyTranslationError(self._provider_label, finish_reason)
         if len(translation) > self.max_output_chars:
-            raise ProviderError("translation exceeded the output limit")
+            raise ProviderError(
+                f"{self._provider_label} translation exceeded the output limit"
+            )
         return translation
 
     async def aclose(self) -> None:

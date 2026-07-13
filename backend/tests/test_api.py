@@ -37,6 +37,21 @@ async def test_health_reports_explicit_mock_providers_without_loading_models(moc
     }
 
 
+async def test_health_identifies_first_class_gemini_translator():
+    app = create_app(
+        Settings(
+            translator_provider="gemini",
+            gemini_api_key="test-key",
+        )
+    )
+
+    response = await make_request(app, "GET", "/health")
+
+    assert response.status_code == 200
+    assert response.json()["translator"] == "gemini:gemini-3.5-flash"
+    await app.state.synthesis_service.aclose()
+
+
 async def test_synthesize_returns_taigi_and_valid_base64_wav(mock_app, request_body):
     response = await make_request(mock_app, "POST", "/v1/synthesize", json=request_body)
 
@@ -112,6 +127,23 @@ async def test_cors_allows_chrome_extension_and_localhost(mock_app):
     assert "access-control-allow-origin" not in evil.headers
 
 
+async def test_cors_allows_extension_to_delete_synthesis_jobs(mock_app):
+    origin = f"chrome-extension://{'a' * 32}"
+    response = await make_request(
+        mock_app,
+        "OPTIONS",
+        f"/v1/synthesis-jobs/{'1' * 36}",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "DELETE",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    assert "DELETE" in response.headers["access-control-allow-methods"]
+
+
 async def test_cors_can_pin_one_extension_id(request_body):
     allowed_id = "a" * 32
     app = create_app(
@@ -169,4 +201,3 @@ async def test_provider_failure_is_loud_and_does_not_fallback(request_body):
 
     assert response.status_code == 502
     assert response.json() == {"detail": "upstream unavailable"}
-

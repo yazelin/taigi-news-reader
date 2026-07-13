@@ -4,12 +4,23 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import Settings
-from .models import HealthResponse, SynthesizeRequest, SynthesizeResponse
+from .jobs import JobCapacityError, JobManager, UNEXPECTED_JOB_ERROR
+from .models import (
+    HealthResponse,
+    SynthesisJobAccepted,
+    SynthesisJobCompleted,
+    SynthesisJobFailed,
+    SynthesisJobPending,
+    SynthesisJobResponse,
+    SynthesizeRequest,
+    SynthesizeResponse,
+)
 from .providers import (
+    GeminiTranslator,
     MmsTtsSynthesizer,
     MockTranslator,
     MockTtsSynthesizer,
@@ -31,13 +42,21 @@ def build_service(settings: Settings) -> SynthesisService:
             timeout_seconds=settings.ollama_timeout_seconds,
             max_output_chars=settings.max_translated_chars,
         )
-    else:
+    elif settings.translator_provider == "openai_compatible":
         # These values are guaranteed by Settings validation.
         translator = OpenAICompatibleTranslator(
             base_url=settings.openai_base_url or "",
             api_key=settings.openai_api_key or "",
             model=settings.openai_model or "",
             timeout_seconds=settings.openai_timeout_seconds,
+            max_output_chars=settings.max_translated_chars,
+        )
+    else:
+        translator = GeminiTranslator(
+            base_url=settings.gemini_base_url,
+            api_key=settings.gemini_api_key or "",
+            model=settings.gemini_model,
+            timeout_seconds=settings.gemini_timeout_seconds,
             max_output_chars=settings.max_translated_chars,
         )
     if settings.tts_provider == "mms":
@@ -59,14 +78,21 @@ def build_service(settings: Settings) -> SynthesisService:
 def create_app(
     settings: Settings | None = None,
     service: SynthesisService | None = None,
+    job_manager: JobManager | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     service = service or build_service(settings)
+    job_manager = job_manager or JobManager(service)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        yield
-        await service.aclose()
+        try:
+            yield
+        finally:
+            try:
+                await job_manager.shutdown()
+            finally:
+                await service.aclose()
 
     application = FastAPI(
         title="Taigi News Reader API",
@@ -75,11 +101,12 @@ def create_app(
     )
     application.state.settings = settings
     application.state.synthesis_service = service
+    application.state.job_manager = job_manager
     application.add_middleware(
         CORSMiddleware,
         allow_origin_regex=settings.cors_origin_regex(),
         allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type"],
         max_age=600,
     )
@@ -96,11 +123,7 @@ def create_app(
 
     @application.post("/v1/synthesize", response_model=SynthesizeResponse)
     async def synthesize(request: SynthesizeRequest) -> SynthesizeResponse:
-        if len(request.text) > settings.max_text_chars:
-            raise HTTPException(
-                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail=f"text exceeds the configured {settings.max_text_chars}-character limit",
-            )
+        enforce_text_limit(request)
         try:
             return await service.synthesize(request.text, request.rate)
         except ProviderError as exc:
@@ -108,6 +131,63 @@ def create_app(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=str(exc),
             ) from exc
+
+    @application.post(
+        "/v1/synthesis-jobs",
+        response_model=SynthesisJobAccepted,
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    async def create_synthesis_job(
+        request: SynthesizeRequest,
+    ) -> SynthesisJobAccepted:
+        enforce_text_limit(request)
+        try:
+            job_id = await job_manager.create(request.text, request.rate)
+        except JobCapacityError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=str(exc),
+            ) from exc
+        return SynthesisJobAccepted(job_id=job_id)
+
+    @application.get(
+        "/v1/synthesis-jobs/{job_id}",
+        response_model=SynthesisJobResponse,
+    )
+    async def get_synthesis_job(job_id: str) -> SynthesisJobResponse:
+        job = await job_manager.get(job_id)
+        if job is None:
+            raise job_not_found()
+        if job.status == "pending":
+            return SynthesisJobPending(job_id=job.job_id)
+        if job.status == "completed" and job.result is not None:
+            return SynthesisJobCompleted(job_id=job.job_id, result=job.result)
+        return SynthesisJobFailed(
+            job_id=job.job_id,
+            error=job.error or UNEXPECTED_JOB_ERROR,
+        )
+
+    @application.delete(
+        "/v1/synthesis-jobs/{job_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    async def delete_synthesis_job(job_id: str) -> Response:
+        if not await job_manager.delete(job_id):
+            raise job_not_found()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    def enforce_text_limit(request: SynthesizeRequest) -> None:
+        if len(request.text) > settings.max_text_chars:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"text exceeds the configured {settings.max_text_chars}-character limit",
+            )
+
+    def job_not_found() -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="synthesis job not found",
+        )
 
     return application
 

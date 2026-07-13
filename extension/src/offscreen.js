@@ -1,4 +1,5 @@
 const { createAudioController } = require("./lib/audio-controller");
+
 const audio = new Audio();
 
 function decode(base64, mimeType) {

@@ -35,3 +35,29 @@ class HealthResponse(BaseModel):
     translator: str
     synthesizer: str
 
+
+class SynthesisJobAccepted(BaseModel):
+    job_id: str
+    status: Literal["pending"] = "pending"
+
+
+class SynthesisJobPending(BaseModel):
+    job_id: str
+    status: Literal["pending"] = "pending"
+
+
+class SynthesisJobCompleted(BaseModel):
+    job_id: str
+    status: Literal["completed"] = "completed"
+    result: SynthesizeResponse
+
+
+class SynthesisJobFailed(BaseModel):
+    job_id: str
+    status: Literal["failed"] = "failed"
+    error: str
+
+
+SynthesisJobResponse = (
+    SynthesisJobPending | SynthesisJobCompleted | SynthesisJobFailed
+)
