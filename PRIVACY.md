@@ -1,6 +1,6 @@
 # 台語新聞朗讀隱私政策
 
-生效日：2026-07-13
+生效日：2026-07-14
 
 本政策適用於「台語新聞朗讀」Chrome 擴充套件、專案提供的推薦非商用語音服務，以及本專案的參考後端。問題或刪除請求可透過 [GitHub Issues](https://github.com/yazelin/taigi-news-reader/issues) 聯絡維護者；Issue 是公開頁面，請勿貼新聞全文、API key、個人資料或其他機密內容。
 
@@ -20,7 +20,7 @@
 
 私人測試版的推薦服務是設定頁明確顯示的 `https://ching-tech.ddns.net/taigi-tts`。它接收使用者確認的新聞純文字，透過 Groq inference 產生台語翻譯，再由伺服器上的台語 TTS 產生音訊。Groq 是此流程中接收新聞文字的外部處理者；TTS 在推薦服務的伺服器執行，不把新聞文字交給另一個 TTS API。Provider identity 會由 `/health` 回傳並顯示於本機重播記錄，若實際 provider 改變，本政策也必須先更新。
 
-2026-07-13，operator 已在 Groq Console 人工確認推薦服務所用 production project 啟用 Zero Data Retention（ZDR），replacement API key 也已由成功 live job 證明正在使用；但先前曾曝光 key 是否已撤銷仍未獲得明確確認。Groq 的官方資料說明指出，inference 預設不保留 customer inputs／outputs，但可靠性或 abuse 調查在未啟用 ZDR 時仍可能暫存最多 30 天；啟用 ZDR 後不會為這些目的保留 customer data。Groq 仍保存不含 customer inputs／outputs 的 usage metadata。Groq 的服務協議另明定，除非客戶明確授權，Inputs／Outputs 不用於訓練或 fine-tuning 模型。詳見 [Groq 資料控制說明](https://console.groq.com/docs/your-data) 與 [Groq Services Agreement](https://console.groq.com/docs/legal/services-agreement)。提交或發佈前仍須明確確認舊 key 已撤銷；replacement active 不能被當成撤銷證據。
+2026-07-13，operator 已在 Groq Console 人工確認推薦服務所用 production project 啟用 Zero Data Retention（ZDR），replacement API key 也已由成功 live job 證明正在使用；但先前曾曝光的 Groq／Gemini keys 是否已撤銷仍未獲得明確確認。Groq 的官方資料說明指出，inference 預設不保留 customer inputs／outputs，但可靠性或 abuse 調查在未啟用 ZDR 時仍可能暫存最多 30 天；啟用 ZDR 後不會為這些目的保留 customer data。Groq 仍保存不含 customer inputs／outputs 的 usage metadata。Groq 的服務協議另明定，除非客戶明確授權，Inputs／Outputs 不用於訓練或 fine-tuning 模型。詳見 [Groq 資料控制說明](https://console.groq.com/docs/your-data) 與 [Groq Services Agreement](https://console.groq.com/docs/legal/services-agreement)。提交或發佈前仍須明確確認舊 keys 已撤銷；replacement active 不能被當成撤銷證據。
 
 Repo 仍保留 Gemini adapter 供自行架設後端的人選用，但 Chrome Web Store 公開版不以 Gemini unpaid quota 作為推薦服務。Google 的 Gemini API 條款說明，Unpaid Services 的 inputs／outputs可能被用於改善 Google 產品，且可能由 human reviewers 處理；這與本專案的公開版資料最小化目標及 Chrome Web Store Limited Use 審查有額外風險。自行改用 Gemini 或其他 provider 的後端營運方，必須另行揭露實際接收者、方案、保存、人工存取及刪除政策，並在傳送前取得適用的同意。詳見 [Gemini API Additional Terms](https://ai.google.dev/gemini-api/terms)。
 
@@ -56,7 +56,7 @@ Repo 仍保留 Gemini adapter 供自行架設後端的人選用，但 Chrome Web
 
 本專案對從 Chrome APIs 取得資訊的使用遵守 Chrome Web Store User Data Policy，包括 Limited Use requirements。詳見 [Chrome Web Store Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use)。
 
-Chrome 於 2026-07-01 公布的 [Chrome Web Store policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 要求所有資料收集都向使用者顯著揭露，不再因為資料與 single purpose 密切相關而省略，並自 2026-08-01 起執行。`0.1.2` 的設計在設定頁先顯示服務目的地、Website content／Authentication information 的用途及第三方 Groq，再由使用者按「同意並儲存、測試」；新聞文字另須在 side panel 預覽後按「確認並開始朗讀」才傳送，本機音訊保存則維持 default-off explicit opt-in。這些 in-product affirmative-consent 與 listing／policy 文案符合目前設計要求，但 Dashboard 仍必須新增 Authentication information 並上傳 `0.1.2`，完成前不得視為 CWS disclosure 已同步。
+Chrome 於 2026-07-01 公布的 [Chrome Web Store policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 要求所有資料收集都向使用者顯著揭露，不再因為資料與 single purpose 密切相關而省略，並自 2026-08-01 起執行。`0.1.2` 的設計在設定頁先顯示服務目的地、Website content／Authentication information 的用途及第三方 Groq，再由使用者按「同意並儲存、測試」；新聞文字另須在 side panel 預覽後按「確認並開始朗讀」才傳送，本機音訊保存則維持 default-off explicit opt-in。2026-07-14 已在 Dashboard 儲存並重載確認 Remote code=No、Website content＋Authentication information、Limited Use certifications 與本 privacy URL；這證明 disclosure draft 已同步，不代表 extension 已 Submit for Review 或已發佈。
 
 ## 政策更新
 

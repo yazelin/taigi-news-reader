@@ -2,7 +2,7 @@
 
 稽核更新：2026-07-14；live private-beta 證據日期：2026-07-13
 
-這份文件是可貼入 Developer Dashboard 的 release copy。Live endpoint、operator-confirmed Groq ZDR、非LAN job與exact `0.1.2` fresh-profile flow已驗證；舊曝光key撤銷仍未明確確認，且ZIP／Authentication information／test instructions尚未更新到Dashboard。不可把repo草稿或工程E2E直接視為已Submit for Review。
+這份文件是可貼入 Developer Dashboard 的 release copy。Live endpoint、operator-confirmed Groq ZDR、非LAN job與exact `0.1.2` fresh-profile flow已驗證；2026-07-14 也已儲存package、listing、Privacy及test instructions。先前曝光的Groq／Gemini keys撤銷仍未明確確認，且尚未按Submit for Review。
 
 ## Store listing
 
@@ -44,7 +44,12 @@
 - Privacy policy URL：`https://github.com/yazelin/taigi-news-reader/blob/main/PRIVACY.md`，送審前以未登入視窗確認可公開讀取。
 - Mature content：No。
 - Payments／in-app purchases：No。
-- Dashboard 已儲存 Private distribution，publisher account 也已加入 trusted testers；不需重做這兩項。Private、Unlisted、Public 仍接受相同 policy review。`0.1.2` ZIP 上傳、Authentication information checkbox、更新後的詳細描述與 test instructions 尚未完成。
+- Dashboard 已儲存 Private distribution，publisher account 也已加入 trusted testers；不需重做這兩項。Private、Unlisted、Public 仍接受相同 policy review。
+- 2026-07-14 已上傳 exact `0.1.2` ZIP，重載後確認 package version／permissions；詳細描述已更新並顯示 616 characters。
+- Dashboard 目前有 128x128 icon、一張 1280x800 screenshot 與 440x280 promo。Privacy 已儲存並重載確認 Remote code=No、Website content＋Authentication information、certifications 與 privacy URL。
+- Test instructions 已於 2026-07-14 儲存：username 是 `cws-reviewer`，64-character raw credential 只存在 Dashboard password 欄，instructions counter 是 360/500。文件、repo 與 evidence 不得保存該 value 或 digest。
+- Homepage、support 與 public privacy URL 已從未登入 HTTP client 確認回 200。
+- Distribution 維持 Private；Submit for Review button 已 enabled 但目前尚未 click。舊 keys 撤銷 gate 完成、真正送審時，必須在 dialog 取消 automatic publishing checkbox以選擇deferred publishing。
 
 ### 圖像
 
@@ -93,11 +98,11 @@
 
 Chrome 要求 Dashboard disclosures、privacy policy 與實際行為一致；見 [Fill out the privacy fields](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy)、[User Data FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq/) 與 [Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use)。
 
-Chrome 在 2026-07-01 公布的 [CWS policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 明確把顯著告知擴大到**所有**資料收集，不論是否與 single purpose 密切相關，並自 2026-08-01 起執行。`0.1.2` 的設計已在 options page 顯示 Website content、Authentication information、目的地與 Groq data flow，再要求使用者按「同意並儲存、測試」；每次新聞另在 side panel 預覽後按「確認並開始朗讀」才傳送，replay audio 維持 default-off explicit opt-in。Listing 的詳細描述與本政策也同步揭露這三層。這是設計／package 狀態，Dashboard 仍必須勾選 Authentication information並上傳 `0.1.2`，不能把 repo 文案當成已完成 Dashboard 更新。
+Chrome 在 2026-07-01 公布的 [CWS policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 明確把顯著告知擴大到**所有**資料收集，不論是否與 single purpose 密切相關，並自 2026-08-01 起執行。`0.1.2` 的設計已在 options page 顯示 Website content、Authentication information、目的地與 Groq data flow，再要求使用者按「同意並儲存、測試」；每次新聞另在 side panel 預覽後按「確認並開始朗讀」才傳送，replay audio 維持 default-off explicit opt-in。Listing 的詳細描述與本政策也同步揭露這三層。2026-07-14 已把對應 disclosure 與 package 儲存到 Dashboard 並重載確認；這不等於已 Submit for Review。
 
 ## Reviewer test instructions
 
-1. 使用待送審的 exact `0.1.2` ZIP 安裝，Chrome 116+；目前候選檔是 50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。Reviewer 不需網站帳號；需要一組只供審查、可撤銷且具有足夠 quota 的個別邀請碼。只透過 Dashboard 的 reviewer credential／test instructions 安全欄位提供，絕不寫入 repo、listing 或 screenshot。
+1. 使用已上傳的 exact `0.1.2` ZIP 安裝，Chrome 116+；檔案是 50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。Reviewer 不需網站帳號；Dashboard username 是 `cws-reviewer`，其個別、可撤銷且具有足夠 quota 的 credential 只存在 password 欄，絕不寫入 repo、listing、instructions本文或 screenshot。
 2. 開啟設定，按「使用建議的非商用服務」，輸入 reviewer 邀請碼，確認資料傳輸告知後接受 exact-origin optional permission，再按「同意並儲存、測試」。預期 `/v1/access` 驗證成功；錯誤邀請碼顯示已撤銷／無效且不保存新設定。
 3. 確認 `https://ching-tech.ddns.net/taigi-tts/health` 直接回 JSON，內容是 production 預期的 `mode=concrete`、Groq translator identity 與真正台語 synthesizer identity；不得回網站 HTML，也不得是 mock。Health request 不帶 Authorization。
 4. 開啟一篇公開繁中新聞，按 extension action，再按「讀取這一頁」。檢查預覽後按「確認並開始朗讀」。
@@ -105,4 +110,4 @@ Chrome 在 2026-07-01 公布的 [CWS policy update](https://developer.chrome.com
 6. 開啟本機重播，完成一篇後再次 START；預期 cache hit，不送 `/health` 或 synthesis。從 history 重播也不送 synthesis。清除全部後 history 與 IndexedDB 為空，且 history／player state／job record 不含 invite token。
 7. Review notes 補充：新聞頁只透過 `activeTab` 在使用者操作後讀取；任意 HTTPS pattern 是為 user-selected backend，實際只 runtime-request exact origin；所有 remote responses 都是 data，不是 executable code。套件對 `/health`、POST／GET／DELETE 都帶固定的公開 extension ID header；`/v1/` 另要求逐人 bearer token並綁定 job owner。Header／Origin 不是 secret；server token config 只有 SHA-256 digest＋stable subject。Private beta 只暴露 async routes，direct synthesis 固定 404；另有 per-subject／global UTC daily quotas、delivery lease／job-result caps 及 edge per-IP limits。
 
-2026-07-13 已用 exact `0.1.2` ZIP 的 fresh Chromium profile通過正式ID、原生optional permission、quota、playback／history與replay zero-backend-request；非LAN Tor路徑也完成TLS、`/v1/access`與完整job。送審時仍須以Dashboard實際提供的reviewer token做一次短smoke，確認backend在整個review期間穩定可用，edge／backend與CORS持續pin正式extension ID並套每IP limits。Dashboard Authentication information、test instructions、reviewer credential及ZIP upload完成前，不得宣稱已Submit for Review。
+2026-07-13 已用 exact `0.1.2` ZIP 的 fresh Chromium profile通過正式ID、原生optional permission、quota、playback／history與replay zero-backend-request；非LAN Tor路徑也完成TLS、`/v1/access`與完整job。2026-07-14 再以Dashboard同一reviewer credential做live smoke：access成功，job由POST 202到completed，回傳`audio/wav`且`audio_base64`為84,028 characters，cleanup DELETE為204；個人quota從20 jobs／12,000 characters變成remaining 19／11,993。這些證據不記raw credential、digest或測試文字。Dashboard內容已儲存但尚未Submit for Review；送審後仍須讓backend在整個review期間保持可用。
