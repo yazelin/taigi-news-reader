@@ -29,11 +29,12 @@ the Internet location, all of these conditions are mandatory:
   request, not permission to exhaust the shared host. Its four-core CPU quota
   preserves practical local MMS latency without consuming every core on a
   larger shared host.
-- The effective backend environment contains
-  `TAIGI_REQUIRE_ACCESS_TOKEN=true`, the exact formal ID in
-  `TAIGI_EXTENSION_IDS`, `TAIGI_ALLOW_LOCALHOST_ORIGINS=false`,
-  `TAIGI_REQUIRE_ALLOWED_ORIGIN=true`, `TAIGI_ALLOW_DIRECT_SYNTHESIS=false`,
-  a non-empty list of independently
+- The Compose override itself fixes `TAIGI_REQUIRE_ACCESS_TOKEN=true`, the
+  exact formal ID in `TAIGI_EXTENSION_IDS`,
+  `TAIGI_ALLOW_LOCALHOST_ORIGINS=false`,
+  `TAIGI_REQUIRE_ALLOWED_ORIGIN=true`, and
+  `TAIGI_ALLOW_DIRECT_SYNTHESIS=false`. The effective backend environment must
+  additionally contain a non-empty list of independently
   revocable `TAIGI_ACCESS_TOKEN_HASHES`, all subject/global daily quota values,
   and all active/outstanding/terminal-byte caps from
   [`deploy/lan/backend.env.example`](../lan/backend.env.example). Never print the
@@ -77,9 +78,11 @@ template as providing one.
 
 Back up the target nginx Compose file and configuration first. Build the exact
 reviewed backend revision, then merge the small beta override with the existing
-LAN Compose definition. The override disables direct synthesis, narrows
+LAN Compose definition. The override fixes strict authentication/origin policy
+and the formal extension ID, disables direct synthesis, narrows
 per-request/daily bounds, and adds CPU/memory/no-swap caps without copying
-secrets or the full service definition:
+secrets or the full service definition. Because strict authentication is fixed
+here, a missing `TAIGI_ACCESS_TOKEN_HASHES` makes application startup fail:
 
 ```bash
 cd deploy/private-beta

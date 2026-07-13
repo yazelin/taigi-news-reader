@@ -27,7 +27,7 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 這條 async-job 路徑已完成 Chromium 150 final：37.01 秒 fixture 合成期間 UI 仍是 `preparing`、service worker 全程存活，完成 37 次短 GET 且 backend 維持 1 個 active job；按 STOP 後 DELETE 回報 `found=true`，active job 歸零且 session 中的 active job id 已清除。真實 Gemini 3.5 Flash + 本機 MMS 的 116 字新聞也從 START 在 50.25 秒進入 `playing`，完成 job 隨即 DELETE，offscreen 成功播放音訊；PAUSE／RESUME／STOP 狀態與 backend cleanup 均通過。
 
-目前 `0.1.2` 工程基線為 extension `82/82` tests 加 ESLint／production build、backend `164 passed`，並已產生可重現的正式 ID artifact `extension/release/taigi-news-reader-0.1.2.zip`：50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。這證明 source、automated contract 與 package checks 通過，不等於 private-beta ingress 已部署、外部 reviewer E2E 已完成或該 ZIP 已上傳 Chrome Web Store。
+目前 `0.1.2` 工程基線為 extension `82/82` tests 加 ESLint／production build、backend `166 passed`，並已產生可重現的正式 ID artifact `extension/release/taigi-news-reader-0.1.2.zip`：50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。這證明 source、automated contract 與 package checks 通過，不等於 private-beta ingress 已部署、外部 reviewer E2E 已完成或該 ZIP 已上傳 Chrome Web Store。
 
 更完整的元件邊界與正式環境方向見 [docs/architecture.md](docs/architecture.md)。
 目前已實際驗證到哪裡、哪些仍待真人測試，見 [docs/validation.md](docs/validation.md)。

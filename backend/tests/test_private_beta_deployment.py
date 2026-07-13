@@ -1,24 +1,45 @@
 from __future__ import annotations
 
+import http.client
+import os
 from pathlib import Path
+import re
+import shutil
+import subprocess
+import time
+
+import pytest
+
+from taigi_news_reader_backend.config import Settings
 
 
 ROOT = Path(__file__).resolve().parents[2]
 BETA = ROOT / "deploy" / "private-beta"
+FORMAL_ID = "nejhlfbnjkbdjcaaklaofggkikdlpakn"
+FORMAL_ORIGIN = f"chrome-extension://{FORMAL_ID}"
 
 
 def read(relative_path: str) -> str:
     return (BETA / relative_path).read_text(encoding="utf-8")
 
 
+def private_beta_environment() -> dict[str, str]:
+    return dict(
+        re.findall(
+            r'^      (TAIGI_[A-Z0-9_]+): "([^"]*)"$',
+            read("compose.override.yaml"),
+            flags=re.MULTILINE,
+        )
+    )
+
+
 def test_private_beta_is_separate_and_pins_only_formal_store_identity():
     http = read("nginx/00-taigi-private-beta-http.conf.example")
     locations = read("nginx/taigi-private-beta-locations.inc")
-    formal_id = "nejhlfbnjkbdjcaaklaofggkikdlpakn"
 
-    assert f"~^chrome-extension://{formal_id}$ 1;" in http
-    assert f"~^{formal_id}\\|$ 1;" in http
-    assert f"~^{formal_id}\\|chrome-extension://{formal_id}$ 1;" in http
+    assert f"~^chrome-extension://{FORMAL_ID}$ 1;" in http
+    assert f"~^{FORMAL_ID}\\|$ 1;" in http
+    assert f"~^{FORMAL_ID}\\|chrome-extension://{FORMAL_ID}$ 1;" in http
     assert "REPLACE_WITH_32_CHARACTER_EXTENSION_ID" not in http
     assert (
         'map "$request_method|$taigi_beta_identity_allowed|'
@@ -39,6 +60,10 @@ def test_private_beta_is_separate_and_pins_only_formal_store_identity():
 def test_private_beta_compose_override_adds_only_fail_closed_bounds():
     override = read("compose.override.yaml")
 
+    assert 'TAIGI_REQUIRE_ACCESS_TOKEN: "true"' in override
+    assert 'TAIGI_REQUIRE_ALLOWED_ORIGIN: "true"' in override
+    assert 'TAIGI_ALLOW_LOCALHOST_ORIGINS: "false"' in override
+    assert f'TAIGI_EXTENSION_IDS: "{FORMAL_ID}"' in override
     assert "TAIGI_ALLOW_DIRECT_SYNTHESIS: \"false\"" in override
     assert "mem_limit: 2g" in override
     assert "mem_reservation: 512m" in override
@@ -54,6 +79,33 @@ def test_private_beta_compose_override_adds_only_fail_closed_bounds():
     assert "ports:" not in override
     assert "env_file:" not in override
     assert "TAIGI_OPENAI_API_KEY" not in override
+
+
+def test_private_beta_override_fails_closed_without_access_token_hashes(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    for name in tuple(os.environ):
+        if name.startswith("TAIGI_"):
+            monkeypatch.delenv(name)
+    for name, value in private_beta_environment().items():
+        monkeypatch.setenv(name, value)
+
+    with pytest.raises(
+        ValueError,
+        match="requires at least one configured hash",
+    ):
+        Settings.from_env()
+
+    monkeypatch.setenv(
+        "TAIGI_ACCESS_TOKEN_HASHES",
+        f"private-beta-test={'a' * 64}",
+    )
+    settings = Settings.from_env()
+    assert settings.require_access_token is True
+    assert settings.require_allowed_origin is True
+    assert settings.allow_localhost_origins is False
+    assert settings.allow_direct_synthesis is False
+    assert settings.extension_ids == (FORMAL_ID,)
 
 
 def test_private_beta_limits_direct_peer_and_does_not_trust_forwarded_input():
@@ -114,10 +166,9 @@ def test_private_beta_exposes_only_health_access_and_async_jobs():
 def test_private_beta_edge_errors_use_only_pinned_readable_cors():
     http = read("nginx/00-taigi-private-beta-http.conf.example")
     locations = read("nginx/taigi-private-beta-locations.inc")
-    formal_origin = "chrome-extension://nejhlfbnjkbdjcaaklaofggkikdlpakn"
 
     assert "map $http_origin $taigi_beta_cors_origin" in http
-    assert f'~^{formal_origin}$ "{formal_origin}";' in http
+    assert f'~^{FORMAL_ORIGIN}$ "{FORMAL_ORIGIN}";' in http
     assert "Access-Control-Allow-Origin *" not in http + locations
     assert locations.count(
         "add_header Access-Control-Allow-Origin $taigi_beta_cors_origin always;"
@@ -191,3 +242,161 @@ def test_private_beta_nginx_syntax_harnesses_cover_rollback_state():
     assert "include /beta/00-taigi-private-beta-http.conf.example;" in combined
     assert "include /beta/taigi-private-beta-locations.inc;" in combined
     assert "include /lan/taigi-locations.inc;" not in combined
+
+
+def test_private_beta_nginx_edge_behavior_in_container():
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker is required for the private-beta edge integration test")
+    image = "nginx:1.29.3-alpine"
+    image_check = subprocess.run(
+        [docker, "image", "inspect", image],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=10,
+        check=False,
+    )
+    if image_check.returncode != 0:
+        pytest.skip(f"pull {image} to run the private-beta edge integration test")
+
+    container_id = ""
+    try:
+        started = subprocess.run(
+            [
+                docker,
+                "run",
+                "--detach",
+                "--rm",
+                "--publish",
+                "127.0.0.1::8080",
+                "--volume",
+                f"{BETA / 'nginx'}:/config:ro",
+                image,
+                "nginx",
+                "-g",
+                "daemon off;",
+                "-c",
+                "/config/nginx.conf.test",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=True,
+        )
+        container_id = started.stdout.strip()
+        published = subprocess.run(
+            [docker, "port", container_id, "8080/tcp"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout.strip()
+        port = int(published.rsplit(":", 1)[1])
+        _wait_for_nginx(port)
+
+        exact_headers = {
+            "Origin": FORMAL_ORIGIN,
+            "X-Taigi-Extension-Id": FORMAL_ID,
+        }
+        wrong_id_headers = {
+            "Origin": FORMAL_ORIGIN,
+            "X-Taigi-Extension-Id": "a" * 32,
+        }
+
+        status, headers = _edge_request(
+            port,
+            "GET",
+            "/taigi-tts/v1/access",
+            wrong_id_headers,
+        )
+        assert status == 403
+        assert headers.get("access-control-allow-origin") == FORMAL_ORIGIN
+
+        status, headers = _edge_request(
+            port,
+            "OPTIONS",
+            "/taigi-tts/v1/synthesis-jobs",
+            {"Origin": "https://not-allowed.example"},
+        )
+        assert status == 403
+        assert "access-control-allow-origin" not in headers
+
+        for method, path in (
+            ("GET", "/taigi-tts/v1/synthesis-jobs"),
+            ("POST", "/taigi-tts/v1/synthesis-jobs/test-job"),
+        ):
+            status, headers = _edge_request(port, method, path, exact_headers)
+            assert status == 403
+            assert headers.get("access-control-allow-origin") == FORMAL_ORIGIN
+
+        status, headers = _edge_request(
+            port,
+            "POST",
+            "/taigi-tts/v1/synthesize",
+            exact_headers,
+        )
+        assert status == 404
+        assert headers.get("access-control-allow-origin") == FORMAL_ORIGIN
+
+        for _ in range(12):
+            status, headers = _edge_request(
+                port,
+                "GET",
+                "/taigi-tts/v1/access",
+                wrong_id_headers,
+            )
+            if status == 429:
+                break
+        assert status == 429
+        assert headers.get("access-control-allow-origin") == FORMAL_ORIGIN
+
+        status, headers = _edge_request(
+            port,
+            "GET",
+            "/taigi-tts/v1/access",
+            {
+                "Origin": "https://not-allowed.example",
+                "X-Taigi-Extension-Id": "a" * 32,
+            },
+        )
+        assert status == 429
+        assert "access-control-allow-origin" not in headers
+    finally:
+        if container_id:
+            subprocess.run(
+                [docker, "rm", "--force", container_id],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                check=False,
+            )
+
+
+def _wait_for_nginx(port: int) -> None:
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            status, _ = _edge_request(port, "GET", "/taigi-tts", {})
+            if status == 404:
+                return
+        except OSError:
+            time.sleep(0.05)
+    raise AssertionError("private-beta nginx container did not become ready")
+
+
+def _edge_request(
+    port: int,
+    method: str,
+    path: str,
+    headers: dict[str, str],
+) -> tuple[int, dict[str, str]]:
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request(method, path, headers=headers)
+        response = connection.getresponse()
+        response.read()
+        return response.status, {
+            name.lower(): value for name, value in response.getheaders()
+        }
+    finally:
+        connection.close()

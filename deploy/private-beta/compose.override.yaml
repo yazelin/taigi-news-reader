@@ -3,6 +3,13 @@
 services:
   backend:
     environment:
+      # Keep the public-beta security posture in the deployment override, not
+      # only in an operator-maintained env file. Requiring authentication here
+      # makes a missing TAIGI_ACCESS_TOKEN_HASHES fail application startup.
+      TAIGI_REQUIRE_ACCESS_TOKEN: "true"
+      TAIGI_REQUIRE_ALLOWED_ORIGIN: "true"
+      TAIGI_ALLOW_LOCALHOST_ORIGINS: "false"
+      TAIGI_EXTENSION_IDS: "nejhlfbnjkbdjcaaklaofggkikdlpakn"
       # Defense in depth: the Internet beta never retains the synchronous route.
       # Strict token mode in the app also rejects startup if this is not false.
       TAIGI_ALLOW_DIRECT_SYNTHESIS: "false"
