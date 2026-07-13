@@ -31,10 +31,12 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 ## 一般使用方式：營運方託管後端
 
-擴充套件目前內建的建議 URL 是 `https://ching-tech.ddns.net/taigi-tts`，但它在完成本 repo 的部署、安全與 release gates 前，**不是可直接給一般公網使用者使用的公共服務**。開發包預設仍不會自動選用它；使用者必須在設定頁主動按下建議服務或自行輸入可信任 URL。正式發佈前，營運方必須：
+擴充套件目前內建的建議 URL 是 `https://ching-tech.ddns.net/taigi-tts`，但目前只完成下述 LAN pilot；在完成可供預定使用者與 reviewer 存取的部署、安全與 release gates 前，**不是可直接給一般公網使用者使用的公共服務**。開發包預設仍不會自動選用它；使用者必須在設定頁主動按下建議服務或自行輸入可信任 URL。若要正式發佈，營運方仍必須：
 
-1. 部署 HTTPS 後端，設定真正支援台語且授權符合非商用用途的 translator / TTS providers；目前可在 server 使用 MMS reference。
-2. 固定允許的 extension ID，對 `/v1/` 檢查 `X-Taigi-Extension-Id` 與存在時的 Origin，並設定網路 allowlist、請求上限、速率限制與隱私／保存政策。
+2026-07-13 已把 concrete Groq＋MMS backend 部署到 `192.168.11.11`，由上述 HTTPS URL 反向代理，且只允許可信 `192.168.11.0/24` LAN。它已通過 health、strict extension ID／Origin、短句與 80 字新聞的真實 WAV／cleanup smoke；正式 production `dist/` 也已通過原生 optional permission、真實播放結束、history 與零 API 快取重播。Backend 沒有 publish host port。這是家用 LAN pilot，不是可供外部 Chrome Web Store reviewer 或一般公網使用者使用的服務；詳見 [部署 runbook](deploy/lan/README.md) 與 [驗證紀錄](docs/validation.md)。
+
+1. 提供可供預定使用者與 reviewer 安全存取的 HTTPS 後端路徑，設定真正支援台語且授權符合非商用用途的 translator / TTS providers；目前 LAN pilot 在 server 使用 MMS reference。
+2. 固定正式發佈的 extension ID，對 `/v1/` 檢查 `X-Taigi-Extension-Id` 與存在時的 Origin，並設定網路 allowlist、請求上限、速率限制與隱私／保存政策。
 3. 透過 Chrome Web Store 或組織管理方式發佈擴充套件，並提供使用者可辨識的正式服務 URL。
 
 一般使用者安裝後，在設定頁填入營運方提供的 HTTPS URL；之後開啟新聞、選取文字或讓套件擷取正文，再按朗讀即可。若未設定後端或後端無法連線，套件必須明確提示設定／服務問題，不得默默改接不明遠端服務或華語 voice。
@@ -89,7 +91,7 @@ docker run --rm --env-file backend/.env.production \
   -p 127.0.0.1:8765:8765 taigi-news-reader-backend
 ```
 
-再由同機 HTTPS reverse proxy 或受管理平台對外提供服務。正式上線還需補身分／濫用防護、rate limit、監控與明確隱私政策；不要直接把開發用 Uvicorn port 暴露到公網。
+再由同機 HTTPS reverse proxy 或受管理平台提供服務。若要開放給外部 reviewer 或一般公網使用者，還需補真正的身分／濫用防護、監控與明確隱私政策，並保留 rate limit；不要直接把開發用 Uvicorn port 暴露到公網。
 
 ## 開發快速開始：mock mode
 

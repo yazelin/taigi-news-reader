@@ -2,7 +2,7 @@
 
 稽核日期：2026-07-13
 
-結論：**package 工程基線接近完成，但目前仍不可提交公開審查。** 下列人工／營運 blockers 完成前，不應登入 Dashboard 上傳或按 Submit for Review。
+結論：**package 工程基線已完成，可上傳成草稿，但目前仍不可按 Submit for Review。** 先把 ZIP 上傳為 Dashboard 草稿，以取得正式 Item ID／public key；上傳草稿不等於送審或發佈。下列人工／營運 blockers 完成前，不應提交審查。
 
 本稽核以 2026-07 可取得的 Chrome 官方文件為準；provider data gate 另只引用 Groq／Google 官方文件。
 
@@ -10,14 +10,16 @@
 
 | 優先級 | Blocker | 完成條件 |
 | --- | --- | --- |
-| P0 | 推薦 backend 的資料處理尚未完成 release attestation | Groq Console 對 production project 啟用 ZDR；輪替未曝光的新 key；確認不用 batch／fine-tuning／retention feature；把 production extension ID 精確放入 edge／backend allowlist，以正式套件實測 health、固定 ID header、Groq translation、真正台語 TTS、rate limit、錯誤及 DELETE cleanup。保存不含內容的設定截圖／日期作 release evidence。 |
+| P0 | 推薦 backend 的資料處理尚未完成 release attestation | Groq Console 對 production project 啟用 ZDR；輪替未曝光的新 key；確認不用 batch／fine-tuning／retention feature；先上傳草稿取得 production Item ID／public key，再把正式 extension ID 精確放入 edge／backend allowlist，以同 ID 套件實測 health、固定 ID header、Groq translation、真正台語 TTS、rate limit、錯誤及 DELETE cleanup。保存不含內容的設定截圖／日期作 release evidence。 |
 | P0 | Gemini Free 與 CWS Limited Use 風險 | 公開推薦 endpoint 不得使用 Gemini unpaid quota。Gemini 保留為 self-hosted optional adapter；若未來要公開採用，只能在重新做 provider terms／privacy review、更新 UI／listing／policy 後切換。Google 官方條款明載 unpaid inputs／outputs 可用於改善產品且可能由 human reviewers 處理。 |
-| P0 | 公開 privacy policy／Dashboard disclosures 尚未人工確認 | 逐字核對 [PRIVACY.md](../PRIVACY.md)、套件內告知、listing 與實際 production provider/logging；用未登入瀏覽器確認 policy URL 公開；在 Dashboard 填 Website content、single purpose、permission justifications、remote code=No、Limited Use certifications。 |
+| P0 | Dashboard privacy disclosures 尚未人工確認 | `https://github.com/yazelin/taigi-news-reader/blob/main/PRIVACY.md` 已在 push 後以未登入 HTTP client 確認回 200；仍須逐字核對 policy、套件內告知、listing 與實際 production provider/logging，並在 Dashboard 填 Website content、single purpose、permission justifications、remote code=No、Limited Use certifications。 |
 | P0 | Store listing graphics／metadata 上傳 | Repo 已有 128 icon、`extension/store-assets/screenshot-reader-1280x800.png` 真實 Chrome UI 截圖與 `extension/store-assets/promo-440x280.png`；仍須在 Dashboard 上傳這些素材，並填詳細描述、語言、分類與 support。缺 screenshot 或必填欄位會被拒絕。 |
-| P0 | Reviewer 可用性／production service | **2026-07-13 root deployment 尚未完成：** 設計 URL 仍是 `https://ching-tech.ddns.net/taigi-tts`，但目前 `/health` 回 301，導向 `https://www.ching-tech.com/taigi-tts/health` 後回公司首頁 `text/html`，不是 health JSON；這是待修的 reverse-proxy／部署狀態，不表示應改套件 URL。完成 root 部署後，推薦 endpoint 必須在 review 期間穩定且不是 mock。若 production 只允許 LAN，外部 CWS reviewer 無法重現；送審前須決定安全且可供 reviewer 存取的方式並寫入 notes。固定 extension header／Origin 都可偽造，不能單獨作為公網 authentication。 |
+| P0 | Reviewer 可用性／production service | **2026-07-13 LAN root deployment 已完成：** `https://ching-tech.ddns.net/taigi-tts/health` 在允許網段直接回 200 JSON，且實際 Groq＋MMS job 已完成 WAV 與 DELETE cleanup；不再 301 到公司首頁。但 production 刻意只允許 `192.168.11.0/24`，外部 CWS reviewer 無法重現。送審前仍須提供安全、可供 reviewer 使用且不把共用 secret 包進 extension 的路徑，並寫入 notes。固定 extension header／Origin 都可偽造，不能單獨作為公網 authentication。 |
 | P0 | Publisher account 外部作業 | 以長期維護信箱註冊並付一次性費用、啟用 Google Account 2-Step Verification、確認聯絡資訊；選 Private trusted testers 或其他 distribution。這些無法由 repo 自動驗證。 |
 
 官方依據：Chrome 要求 manifest root ZIP、name／version／icons／description，且每次更新 version 必須增加；見 [Prepare your extension](https://developer.chrome.com/docs/webstore/prepare)。Listing 缺 description、icon 或 screenshots 會被拒；圖像尺寸見 [Supplying Images](https://developer.chrome.com/docs/webstore/images)。處理 website content，即使只存在本機，也要揭露並提供 privacy policy；見 [User Data FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq/) 與 [Privacy practices](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy)。
+
+Dashboard 允許先上傳 ZIP 後編輯草稿，直到按 Submit for Review 才進入審查；官方也明確說明可在未發佈前由 Package 頁取得 public key 來固定開發版 ID，見 [Publish in the Chrome Web Store](https://developer.chrome.com/docs/webstore/publish/) 與 [Manifest `key`](https://developer.chrome.com/docs/extensions/reference/manifest/key)。2026-08-01 開始施行的更新要求對所有資料處理做顯著揭露，因此本案從 first release 就以較嚴格版本填寫 UI、listing 與 Dashboard；見 [2026 policy update](https://developer.chrome.com/blog/cws-policy-updates-2026)。
 
 Groq 官方說明指出 inference inputs／outputs 預設不保留，但 reliability／abuse logs 最多可能保留 30 天，所有客戶可啟用 ZDR；見 [Your Data in GroqCloud](https://console.groq.com/docs/your-data)。Groq 的 [Services Agreement](https://console.groq.com/docs/legal/services-agreement) 說 Inputs／Outputs 不用於 training／fine-tuning，除非 customer 明確授權。相較之下，[Gemini API Additional Terms](https://ai.google.dev/gemini-api/terms) 說 Unpaid Services 內容可用於改善產品並可能由 human reviewers 處理；Chrome [Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use) 對 human access／data transfer 有嚴格限制。
 
@@ -34,10 +36,12 @@ Groq 官方說明指出 inference inputs／outputs 預設不保留，但 reliabi
 - esbuild 沒有 source map、沒有 obfuscation／minification，package 不含 tests、`node_modules`、provider keys、model weights或 backend secrets。官方 review 文件指出 broad host／sensitive execution 與難讀 code 會延長審查；目前 compiled code 可讀，但 `https://*/*` 仍需 review notes 詳細解釋，見 [Review process](https://developer.chrome.com/docs/webstore/review-process)。
 - Store small promo 已有實際 440x280 PNG；另已用 production `dist/` 的 isolated Chromium profile 拍攝真實 1280x800 新聞頁＋side panel 內容確認畫面 `extension/store-assets/screenshot-reader-1280x800.png`，不是 SVG 設計稿或僅截 extension page。
 - `npm run release:check` 會重新 build，核對 manifest／version／permissions／CSP／icons／package references、secret／RHC signatures、symlink、source map 與 2 GB 上限。
-- `npm run package:store` 只把 `dist/` 內容放入 ZIP root，驗證 root `manifest.json`、拒絕多一層 `dist/` 或不安全 path，並輸出 SHA-256。官方 ZIP 上限是 2 GB；見 [Publish in the Chrome Web Store](https://developer.chrome.com/docs/webstore/publish/)。
+- `npm run package:store` 只把 `dist/` 的 15 個檔案以固定時間與排序放入 ZIP root，驗證 root `manifest.json`、拒絕多一層 `dist/` 或不安全 path，並內建連續兩次包裝的 bytes／SHA-256 可重現斷言。當前 draft artifact 為 `taigi-news-reader-0.1.0.zip`，42,763 bytes，SHA-256 `47541131528165c51b03b9acf01d4bc25c11f9b0f86cad104691aa42d384f0ea`；官方 ZIP 上限是 2 GB，見 [Publish in the Chrome Web Store](https://developer.chrome.com/docs/webstore/publish/)。取得 public key 並增加版本後必須重包，不得沿用這個 hash。
 - `.github/workflows/store-package.yml` 只有手動 `workflow_dispatch`，執行 tests／lint／build／package 並上傳短期 artifact；它沒有 CWS token、登入、upload 或 publish 步驟。
-- Header fix 完成後的自動基線為 extension ESLint／production build／`71/71` tests，以及 backend `92 passed`；NGINX 1.29.3 `nginx -t` 亦通過。這只證明 repo contract，不代表上述 root endpoint 已部署。
-- Chromium `150.0.7871.46` isolated-profile strict mock E2E 已用 production `dist/` 的 test-only copy 通過 POST 202 → GET 200 → DELETE 204、offline START `cacheHit=true` 與 explicit REPLAY `cacheHit=true`。Test copy 只為繞過原生 prompt 額外授予 localhost host permission，正式 manifest 沒有 required host permissions；這項 LAN/mock 證據仍不能取代 production endpoint 與 CWS reviewer 測試。
+- 自動基線為 extension ESLint／production build／`71/71` tests，以及 backend `100 passed`；NGINX 1.29.3 `nginx -t` 亦通過。Backend regression 包含將 punctuation、smart apostrophe／hyphen 與 `ⁿ` 做窄幅 deterministic normalization，中文、數字、不支援拉丁字母及 symbols 仍 fail closed。
+- 實際 `.11` LAN deployment 使用只含 nginx＋backend 的 dedicated external network；backend 沒有 host port、以 non-root／read-only rootfs／cap-drop 執行。CPU-only image 驗證 `torch 2.13.0+cpu`、`torch.version.cuda=None` 且沒有 `nvidia-*` packages。HTTPS health 是 concrete Groq＋MMS JSON；allowed preflight 為 200，錯誤 Origin、缺少／錯誤 ID 及 mismatched ID／Origin 為 403，正確 header 的無 Origin GET／DELETE 能通過 edge 到 backend 404。真實短句 job 為 POST 202 → completed 62,508-byte RIFF/WAVE → DELETE 204；direct `/v1/synthesize` 為 404，LAN 直連 host port 8765 失敗。
+- Chromium `150.0.7871.46` isolated-profile strict mock E2E 已用 production `dist/` 的 test-only copy 通過 POST 202 → GET 200 → DELETE 204、offline START `cacheHit=true` 與 explicit REPLAY `cacheHit=true`。Test copy 只為繞過原生 prompt 額外授予 localhost host permission，正式 manifest 沒有 required host permissions。
+- Chromium `149.0.7827.55` 以未修改的 production `dist/` 實際通過 Chrome 原生 optional-permission prompt、action／activeTab、side panel 擷取、concrete Groq＋MMS job，offscreen audio `ended`後 `completed`、history 與按鈕 replay。首次播放取得 189,484-byte RIFF/WAVE；replay 新增 health、job API 及全部 backend request 均為 0。同次測試曾重現 80 字新聞被 punctuation／`ⁿ` 擋下，extension 正確 fail without fake audio；保守 normalization 修正 `253300c` 部署後，同 80 字 production job 產生 932,908-byte RIFF/WAVE 並 DELETE 204。這些 LAN production 證據仍不能取代正式 CWS ID 或外部 reviewer 可達性測試。
 
 ## Broad optional host decision
 
@@ -45,14 +49,15 @@ Groq 官方說明指出 inference inputs／outputs 預設不保留，但 reliabi
 
 ## Package 與發佈程序
 
-1. 完成上表所有 P0，更新 privacy／listing copy。
-2. 確認 `src/manifest.json` 與 `package.json` version 相同，而且高於 Dashboard 已上傳的版本。
-3. 執行 `cd extension && npm ci && npm run check && npm run package:store`。
-4. 記錄 tests、ZIP 路徑、size、SHA-256、git commit、Groq ZDR attestation、endpoint health identity 與 isolated-profile E2E。
-5. 解壓 ZIP 到空目錄，從解壓後內容 load unpacked；重跑 [manual-test.md](manual-test.md) 與 [listing reviewer steps](chrome-web-store-listing.md#reviewer-test-instructions)。Chrome 官方也要求測試實際提交的 exact package；見 [Troubleshooting](https://developer.chrome.com/docs/webstore/troubleshooting/)。
-6. 在 Dashboard 完成 Store listing、Privacy practices、Distribution 與 Test instructions。建議 first release 用 Private trusted testers；所有 visibility 都走相同 policy review，見 [Distribution](https://developer.chrome.com/docs/webstore/cws-dashboard-distribution/)。
-7. 人工上傳 ZIP 並選 deferred publishing；不要把 CWS OAuth refresh token 或 signing private key放進 repo。官方要求 developer account 2-Step Verification，見 [Chrome Web Store API prerequisites](https://developer.chrome.com/docs/webstore/using-api)。
-8. Review 通過後再人工決定 publish；deferred submission 通過後有 30 天可發佈，見 [Publish](https://developer.chrome.com/docs/webstore/publish/)。
+1. 以 developer account 把當前 ZIP 上傳成新草稿，**不要按 Submit for Review**；記錄 Item ID，並從 Package 頁複製 public key。
+2. 將 public key 放入 source manifest 的 `key`，讓 load-unpacked 也使用同一個正式 ID；增加 manifest／package version，將同一 ID 放入 edge／backend allowlist。Public key 可公開，但 CWS signing private key／OAuth token 不得放進 repo。
+3. 完成上表其餘 P0，更新 privacy／listing copy。
+4. 確認 `src/manifest.json` 與 `package.json` version 相同，而且高於 Dashboard 已上傳的版本；執行 `cd extension && npm ci && npm run check && npm run package:store`。
+5. 記錄 tests、ZIP 路徑、size、SHA-256、git commit、Groq ZDR attestation、endpoint health identity 與 isolated-profile E2E。
+6. 解壓 ZIP 到空目錄，從解壓後內容 load unpacked；重跑 [manual-test.md](manual-test.md) 與 [listing reviewer steps](chrome-web-store-listing.md#reviewer-test-instructions)。Chrome 官方也要求測試實際提交的 exact package；見 [Troubleshooting](https://developer.chrome.com/docs/webstore/troubleshooting/)。
+7. 在 Dashboard 完成 Store listing、Privacy practices、Distribution 與 Test instructions。建議 first release 用 Private trusted testers；所有 visibility 都走相同 policy review，見 [Distribution](https://developer.chrome.com/docs/webstore/cws-dashboard-distribution/)。
+8. 上傳最終 ZIP，人工按 Submit for Review 並選 deferred publishing。官方要求 developer account 2-Step Verification，見 [Chrome Web Store API prerequisites](https://developer.chrome.com/docs/webstore/using-api)。
+9. Review 通過後再人工決定 publish；deferred submission 通過後有 30 天可發佈，見 [Publish](https://developer.chrome.com/docs/webstore/publish/)。
 
 ## Release evidence 範本
 
