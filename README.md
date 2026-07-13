@@ -21,11 +21,13 @@ Chrome 播放、暫停與停止
 
 瀏覽器不能單靠 Web Speech API 保證每台電腦都有台語聲音，所以語言轉換與合成放在後端。一般長輩只需安裝擴充套件，不需安裝 Python、Ollama 或大型模型。開發者可用 localhost 自架參考後端，或切到 mock mode；mock 只證明資料流與操作介面，**不是台語 TTS**。
 
-Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也不讓 offscreen document 負責網路請求。MV3 可能在約 30 秒後終止長時間 fetch；實測舊流程曾在約 39 秒失敗。現在由 service worker 建立非同步工作：`POST /v1/synthesis-jobs` 取得 UUID4 job id，以短 `GET /v1/synthesis-jobs/{job_id}` 輪詢，拿到完成音訊後立即 `DELETE`；offscreen 只把完成資料轉成 Blob 並控制 audio 播放。使用者按 STOP 時也會 `DELETE`，讓後端取消仍在執行的工作。
+Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也不讓 offscreen document 負責網路請求。MV3 可能在約 30 秒後終止長時間 fetch；實測舊流程曾在約 39 秒失敗。現在由 service worker 建立非同步工作：`POST /v1/synthesis-jobs` 取得 UUID4 job id，以短 `GET /v1/synthesis-jobs/{job_id}` 輪詢，拿到完成音訊後立即 `DELETE`；offscreen 只把完成資料轉成 Blob 並控制 audio 播放。使用者按 STOP 時也會 `DELETE`。如果 provider 仍在不能安全中斷的 thread 中工作，DELETE 會立即對該 owner 隱藏並冪等確認 job，但 active／outstanding capacity 仍計到 provider 真正結束，避免用 create/delete loop 製造額外推論容量。
 
-`POST /v1/synthesize` 仍保留給直接 API 整合與診斷，但 Chrome 正常流程不依賴這個長連線 endpoint。
+`POST /v1/synthesize` 只保留給預設開放的 local development／診斷；Chrome 正常流程不依賴它。Strict invite-token mode 若同時設定 `TAIGI_ALLOW_DIRECT_SYNTHESIS=true` 會在啟動時 fail closed，private-beta ingress 也固定讓 direct route 回 404。
 
 這條 async-job 路徑已完成 Chromium 150 final：37.01 秒 fixture 合成期間 UI 仍是 `preparing`、service worker 全程存活，完成 37 次短 GET 且 backend 維持 1 個 active job；按 STOP 後 DELETE 回報 `found=true`，active job 歸零且 session 中的 active job id 已清除。真實 Gemini 3.5 Flash + 本機 MMS 的 116 字新聞也從 START 在 50.25 秒進入 `playing`，完成 job 隨即 DELETE，offscreen 成功播放音訊；PAUSE／RESUME／STOP 狀態與 backend cleanup 均通過。
+
+目前 `0.1.2` 工程基線為 extension `82/82` tests 加 ESLint／production build、backend `164 passed`，並已產生可重現的正式 ID artifact `extension/release/taigi-news-reader-0.1.2.zip`：50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。這證明 source、automated contract 與 package checks 通過，不等於 private-beta ingress 已部署、外部 reviewer E2E 已完成或該 ZIP 已上傳 Chrome Web Store。
 
 更完整的元件邊界與正式環境方向見 [docs/architecture.md](docs/architecture.md)。
 目前已實際驗證到哪裡、哪些仍待真人測試，見 [docs/validation.md](docs/validation.md)。
@@ -34,14 +36,15 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 擴充套件目前內建的建議 URL 是 `https://ching-tech.ddns.net/taigi-tts`。`0.1.2` source 已實作每位測試者各自的邀請碼、配額與工作隔離。邀請碼不是 Groq／Gemini provider key：明碼只存在該 Chrome profile 的 `chrome.storage.local`，綁定設定的 backend origin，並只以 `Authorization: Bearer …` 送到同 origin 的 `/v1/`。Server 只設定 SHA-256 digest 與穩定假名 subject；任何把共用 provider key 或共用邀請碼包進 extension ZIP 的作法都會讓安裝者取得它，禁止採用。
 
-目前只完成下述 LAN pilot；新的 authentication／quota 程式仍須完成 exact package tests、外部 reviewer reachability 與 live deployment，才能視為可供私人測試者使用。開發包預設不會自動選用推薦服務；使用者必須在設定頁主動選擇服務、輸入管理者個別提供的邀請碼並通過 `/v1/access` 驗證。若要送出 private trusted-testers 版本，營運方仍必須：
+目前只完成下述 LAN pilot；authentication／quota、private-beta ingress 範本與 exact `0.1.2` package 已完成 repo 內驗證，但 ingress **尚未部署到 `.11`**，外部 reviewer E2E 也尚未執行。開發包預設不會自動選用推薦服務；使用者必須在設定頁主動選擇服務、輸入管理者個別提供的邀請碼並通過 `/v1/access` 驗證。若要送出 private trusted-testers 版本，營運方仍必須：
 
 2026-07-13 已把 concrete Groq＋MMS backend 部署到 `192.168.11.11`，由上述 HTTPS URL 反向代理，且只允許可信 `192.168.11.0/24` LAN。Dashboard public key 已固定 `0.1.1` 的正式 CWS ID `nejhlfbnjkbdjcaaklaofggkikdlpakn`；exact `0.1.1` ZIP 也已用全新 Chrome profile 通過原生 optional permission、真實 Groq＋MMS 播放完成、history 與零 API 快取重播。Edge／backend 在現有安裝遷移期同時接受正式 ID 與舊 unpacked ID。這只維持兩種安裝的後端連線；Chrome 會把兩個 ID 視為不同 extension origin，因此舊版設定與本機重播不會自動移到正式版，使用者須重新選定服務並重新開啟重播。它另已通過 health、strict extension ID／Origin、短句與 80 字新聞的真實 WAV／cleanup smoke。Backend 沒有 publish host port。這是家用 LAN pilot，不是可供外部 Chrome Web Store reviewer 或一般公網使用者使用的服務；詳見 [部署 runbook](deploy/lan/README.md) 與 [驗證紀錄](docs/validation.md)。
 
 1. 提供可供預定測試者與 CWS reviewer 安全存取的 HTTPS 後端路徑，設定真正支援台語且授權符合非商用用途的 translator / TTS providers；目前 LAN pilot 在 server 使用 MMS reference。
 2. 為每位測試者產生高熵、可撤銷的不同邀請碼；server 只保存 `subject=SHA-256 digest`，並啟用每 subject／全域 UTC 日工作數與字元數配額。SQLite 只保存日期、subject、工作數、字元數，不保存新聞、音訊或 token。
-3. 維持正式 extension ID pinning，對 `/v1/` 同時檢查 bearer credential、`X-Taigi-Extension-Id` 與存在時的 Origin；edge 另套每 IP request／connection limit，backend 套 active／outstanding job 與 terminal-result bytes caps。私人 beta 固定單一 worker，因 job registry 仍是 process-local memory。
-4. 完成 Groq ZDR、輪替所有曾曝光的 provider keys、external reachability、production logging／monitoring 與 live abuse smoke，再把 `0.1.2` exact ZIP 送 Private trusted testers 審查。
+3. 依 [`deploy/private-beta/`](deploy/private-beta/README.md) 範本維持正式 extension ID pinning，對 `/v1/` 同時檢查 bearer credential、`X-Taigi-Extension-Id` 與存在時的 Origin；edge 另套每 IP request／connection limit，backend 套 active／outstanding job 與 terminal-result bytes caps。私人 beta 固定單一 worker，因 job registry 仍是 process-local memory。
+4. Private beta 把單次 request 限為 600 source characters、2,000 translated characters、16 MiB audio，每 subject 每 UTC 日 20 jobs／12,000 characters、全域 100 jobs／60,000 characters，container 限 2 GiB memory／no swap 與 4 CPUs；這些是已測的 Compose／nginx 範本值，不是 `.11` 目前 live 狀態，也不是音訊秒數保證。
+5. 完成 Groq ZDR、輪替所有曾曝光的 provider keys、external reachability、production logging／monitoring 與 live abuse smoke，再把 `0.1.2` exact ZIP 上傳並送 Private trusted testers 審查。
 
 私人測試者安裝後，在設定頁填入營運方提供的 HTTPS URL 與自己的邀請碼；之後開啟新聞、選取文字或讓套件擷取正文，再按朗讀即可。若未設定、邀請碼被撤銷、配額已滿或後端無法連線，套件必須明確提示對應問題，不得默默改接不明遠端服務或華語 voice。
 
@@ -76,11 +79,13 @@ TAIGI_DAILY_GLOBAL_CHARACTER_LIMIT=250000
 
 擴充套件對 `/health`、job POST、每次 GET poll 與 DELETE 都會帶 `X-Taigi-Extension-Id: chrome.runtime.id`。Chrome 的部分簡單 GET 可能不帶 Origin，因此 strict backend 以固定 header 為 `/v1/` client gate，Origin 存在時再核對同一 ID；CORS preflight 仍以 exact extension Origin 協商。Extension ID header 與 Origin 都是公開且可被非瀏覽器偽造的識別，不是 API key 或 authentication。Private beta 的 `/v1/` 另要求逐人 bearer invite token，並把工作綁到該 token 的 subject；`/health` 明確不帶 bearer token。Edge 保留每 IP rate／connection limit、request size 與 HTTPS，不能只依賴 bearer token。
 
-每日配額以 SQLite transaction 原子保留：每個 subject 與全域分別限制已接受工作數及 `text` 字元數，UTC 午夜重置。接受後即計費，後續 provider failure 或取消不退回；SQLite 只有 `utc_date/subject/jobs/characters`，不含新聞、翻譯、音訊、raw token 或 token digest。Job result 仍只在單一 process memory，跨 subject 不能讀取／刪除，terminal GET 只交付一次；全域與每 subject 的 outstanding jobs／retained bytes caps 及 TTL 限制暫存量。這個 beta 架構不得水平擴充 worker，除非 job registry 改為共享 queue／store。
+每日配額以 SQLite transaction 原子保留：每個 subject 與全域分別限制已接受工作數及 `text` 字元數，UTC 午夜重置。接受後即計費，後續 provider failure 或取消不退回；SQLite 只有 `utc_date/subject/jobs/characters`，不含新聞、翻譯、音訊、raw token 或 token digest。Job result 仍只在單一 process memory，跨 subject 不能讀取／刪除。Terminal GET 會先取得 one-shot delivery lease，payload 與 retained-byte accounting 一直保留到 ASGI response 成功送完或傳輸失敗後的 finalizer 才釋放；同時 DELETE 只做隱藏／ack，不能提早釋放正在傳送的 bytes。全域與每 subject 的 outstanding jobs／retained bytes caps 及 TTL 限制暫存量。這個 beta 架構不得水平擴充 worker，除非 job registry 改為共享 queue／store。
 
 remote TTS endpoint 接收 `{"text":"...","language":"nan-TW","rate":1.0}`，回傳 `{"audio_base64":"...","mime_type":"audio/wav"}`。若供應商 API 不同，應在後端新增 adapter 或部署轉接服務，不能把金鑰或轉接邏輯塞進擴充套件。
 
 目前的非商用目標也可以把 MMS 直接跑在 hosted backend：將 `TAIGI_TTS_PROVIDER=mms`、`TAIGI_MMS_MODEL=facebook/mms-tts-nan`，並以 `docker build --build-arg INSTALL_LOCAL_MMS=1 ...` 建置。這樣一般使用者仍不需安裝模型；模型只存在營運方 server。翻譯端可接 OpenAI-compatible provider，或在同一個私有網路中使用 Ollama。
+
+本機 MMS adapter 會由 `TAIGI_MAX_AUDIO_BYTES` 先換算最大 PCM sample 數；Transformers forward 回傳 waveform tensor 後，先用 `numel()` 檢查，再呼叫 `.cpu().flatten().tolist()`，避免超大 tensor 額外膨脹成無界 Python list，WAV encoder 也再次逐 sample／最終 bytes 驗證。這是 **pre-`.tolist()` cap**，不是 pre-forward cap：Transformers model 在 `numel()` 檢查前仍已完成 forward 並配置輸出 tensor，Python 無法保證在 model 內部配置前知道最後長度。Private beta 因此還要依賴 600／2,000／16 MiB request limits、MMS single-flight gate、2 GiB container memory/no-swap cap 與 4-CPU quota；文件不得宣稱 audio cap 能阻止所有 model-forward memory peak。
 
 例如 [Groq 已提供 OpenAI-compatible Chat Completions](https://console.groq.com/docs/openai)，可直接使用現有 adapter：`TAIGI_OPENAI_BASE_URL=https://api.groq.com/openai/v1`，API key 只放 server，模型可先以 `openai/gpt-oss-120b` 做 POJ 品質測試。接得上 API 不等於台語品質已通過；輸出仍須經 MMS 字元 gate、新聞測試集與母語者驗收。
 
@@ -106,11 +111,11 @@ docker run --rm --env-file backend/.env.production \
   -p 127.0.0.1:8765:8765 taigi-news-reader-backend
 ```
 
-再由同機 HTTPS reverse proxy 或受管理平台提供服務。外部 reviewer endpoint 必須先完成逐人 authentication、每日與 process caps、每 IP edge limits、監控與明確隱私政策；不要直接把開發用 Uvicorn port 暴露到公網。這些控制已在 `0.1.2` source 實作，不代表 production 已部署或外網 smoke 已通過。
+再由同機 HTTPS reverse proxy 或受管理平台提供服務。外部 reviewer endpoint 必須先完成逐人 authentication、每日與 process caps、每 IP edge limits、監控與明確隱私政策；不要直接把開發用 Uvicorn port 暴露到公網。`deploy/private-beta/` 已提供並自動測試 fail-closed ingress／resource-limit 範本，但尚未套用到 `.11`，也沒有外網 smoke 證據。
 
 ### 從私人測試升級為公開版
 
-Private trusted testers 與 Public 可以使用同一個 Chrome Web Store item；不需建立另一個 extension ID。私人版先完成 P0 gates、把版本提升到高於 Dashboard 現有版本的 `0.1.2`、重包並以 Private distribution 送審。通過後只把各自的高熵邀請碼私下交給列入 trusted testers 的人，不把 token 放進 ZIP、商店文案或公開 issue。
+Private trusted testers 與 Public 可以使用同一個 Chrome Web Store item；不需建立另一個 extension ID。Dashboard 已儲存 Private distribution 並把 publisher account 加入 trusted testers；`0.1.2` exact ZIP 也已產生，但尚未上傳。私人版仍須先完成 ZDR／key rotation、live ingress 與外部 E2E 等 P0，再上傳同一 item 送審。通過後只把各自的高熵邀請碼私下交給列入 trusted testers 的人，不把 token 放進 ZIP、商店文案或公開 issue。
 
 公開升版時維持同一 item ID，再將 manifest／package 版本提升（例如 `0.1.3`），上傳新 ZIP、更新 privacy／listing／review notes 並重新送審，之後才把 distribution 改成 Public。相同 item ID 讓已安裝的私人版可正常自動更新；本機設定與重播資料也保留，但若公開版更換 authentication 模式，必須提供明確 migration／sign-out 並安全清除舊 invite token。
 
@@ -204,7 +209,7 @@ Cache schema v2 的 `id` 是以 normalized 文字 chunks、語速、目前 backe
 
 預設關閉本機重播時，擴充套件不持久保存新聞文字或生成音訊；只有上述 explicit opt-in 才會在 Chrome profile 保存 bounded title metadata 與 audio。私人測試邀請碼是另一類本機設定：raw token 只存在 `taigiSettings`、綁定 backend origin，且只以 Authorization 送到該 origin 的 `/v1/`；它屬於 Authentication information，不進入 replay／player／active-job records，也不是 provider key。
 
-Browser-local cache、server quota 與後端 job 是三個不同生命週期。Quota SQLite 只持久保存目前 UTC 日的假名 subject、工作數與字元數，不保存新聞、音訊或 token。非同步 job 全部只存在單一 backend process 的記憶體，依 subject 隔離；原文只活在 active synthesis task 的參數中，從不放入 job registry 或磁碟。Terminal result 只能取得一次，之後只留 DELETE tombstone；未被取走／刪除的 terminal record 最多保留 600 秒。Process 關閉時也會取消 active jobs 並清空記憶體。
+Browser-local cache、server quota 與後端 job 是三個不同生命週期。Quota SQLite 只持久保存目前 UTC 日的假名 subject、工作數與字元數，不保存新聞、音訊或 token。非同步 job 全部只存在單一 backend process 的記憶體，依 subject 隔離；原文只活在 active synthesis task 的參數中，從不放入 job registry 或磁碟。Terminal result 只能 claim 一次，payload 保留到 response send／failure finalizer釋放delivery lease後才只留DELETE tombstone；傳送中DELETE不會提早釋放bytes。未被取走／刪除的terminal record或stale lease最多保留600秒。Process關閉會要求取消active jobs，並等待無法立即停止的MMS worker實際結束。
 
 本機重播 metadata 只開放給 extension trusted contexts；一般新聞頁與 content script 不應讀到它。它仍是使用者 Chrome profile 中的本機資料，標題與音訊可能透露閱讀內容，不應視為加密保管。使用者可逐筆刪除、清除全部或關閉功能立即刪除；瀏覽器／作業系統層級的 profile 存取風險仍由裝置安全負責。
 

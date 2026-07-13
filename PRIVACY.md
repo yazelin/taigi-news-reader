@@ -40,7 +40,7 @@ Repo 仍保留 Gemini adapter 供自行架設後端的人選用，但 Chrome Web
 
 ## 推薦後端的保存時間
 
-參考後端不把新聞原文寫入 job registry、application log、quota database 或磁碟。原文只在 active translation／synthesis task 的記憶體參數中存在；完成後釋放。工作綁定已驗證邀請碼對應的 subject，其他 subject 即使取得 job ID 也不能讀取或刪除。完成音訊或安全錯誤只存在單一 backend process 的記憶體；terminal response 只能成功讀取一次，之後只留下可供 Chrome 後續 DELETE 的小型 tombstone。若沒有成功讀取或刪除，terminal record 最多保留 600 秒並在後續 job API 操作時清理。全域、每 subject 的 outstanding-job 與 terminal-result bytes 上限會限制記憶體與音訊流量；超過上限會明確失敗。Process 關閉也會取消 active jobs 並清空這些記憶體資料。
+參考後端不把新聞原文寫入 job registry、application log、quota database 或磁碟。原文只在 active translation／synthesis task 的記憶體參數中存在；完成後釋放。工作綁定已驗證邀請碼對應的 subject，其他 subject 即使取得 job ID 也不能讀取或刪除。完成音訊或安全錯誤只存在單一 backend process 的記憶體；terminal response 只能成功取得一次。該 GET 會持有一個 delivery lease，payload 與 retained-byte 配額一直保留到 response body 成功送完或傳輸失敗後的 finalizer 才釋放，之後只留可供 Chrome DELETE 的小型 tombstone。傳送期間收到同 owner DELETE 會立即隱藏並確認 job，但不會提早釋放 payload；pending provider 若不能安全中斷，也會繼續占用 active／outstanding capacity 到真正結束。未取走的 terminal record、tombstone 或卡住的 delivery lease 最多保留 600 秒並在後續 job API 操作時清理。全域、每 subject 的 outstanding-job 與 terminal-result bytes 上限會限制記憶體與音訊流量；超過上限會明確失敗。Process 關閉會要求取消 active jobs；不能合作取消的 MMS worker thread 仍會由 service shutdown 等到實際結束。
 
 私人測試後端使用 durable SQLite 只保存目前 UTC 日的配額列：UTC 日期、假名化 subject、已接受工作數與已接受字元數。它不保存新聞原文、翻譯、音訊、邀請碼明碼或 digest。每個 subject 與全域都有每日工作數及字元數上限，於 UTC 午夜重置；已接受的請求即使之後 provider 失敗或使用者取消，仍計入配額。舊日期列會在啟動或配額操作時刪除。這份 SQLite 可跨 backend restart 保留當日用量；job registry 仍是單一 worker 的 process-local memory，因此私人 beta 只執行一個 backend worker／replica。
 
@@ -52,9 +52,11 @@ Repo 仍保留 Gemini adapter 供自行架設後端的人選用，但 Chrome Web
 
 推薦服務使用 HTTPS；擴充套件拒絕一般明文 HTTP，只允許使用者為同機開發目的選擇 `localhost`／`127.0.0.1`。Provider keys 只存在 backend secret，不會包進擴充套件或送到 Chrome。私人邀請碼只能授權本服務的受限 `/v1/` 功能；它不會讓使用者取得或直接呼叫營運方的 Groq／Gemini provider key。
 
-`X-Taigi-Extension-Id` 與瀏覽器可能送出的 `Origin` 都是公開識別資料，非瀏覽器 client 可以偽造，不能視為使用者驗證或安全祕密。私人測試的真正應用層驗證是逐人、可撤銷的邀請碼；edge 另以每 IP request／connection limits、request size limits、HTTPS，以及 backend 的每日配額、active／outstanding jobs 與 terminal bytes caps 降低濫用風險。`/health` 不接收邀請碼，只套獨立的 edge limits。正式公網上線前仍須完成外部可達性、production logging／監控與 live abuse 測試，並依公開 onboarding／account 模式重新檢查本政策。
+`X-Taigi-Extension-Id` 與瀏覽器可能送出的 `Origin` 都是公開識別資料，非瀏覽器 client 可以偽造，不能視為使用者驗證或安全祕密。私人測試的真正應用層驗證是逐人、可撤銷的邀請碼；edge 另以每 IP request／connection limits、request size limits、HTTPS，以及 backend 的每日配額、active／outstanding jobs 與 terminal bytes caps 降低濫用風險。Private-beta 範本另限制 600 source characters、2,000 translated characters、16 MiB audio，每 subject 每 UTC 日 20 jobs／12,000 characters與全域100 jobs／60,000 characters，以及2 GiB container memory/no-swap與4 CPUs，並強制關閉direct synthesis；這些控制已存在repo並有自動檢查，但尚未部署到`.11`。`/health`不接收邀請碼，只套獨立edge limits。正式外網上線前仍須完成ZDR、provider key rotation、外部可達性、production logging／監控與live abuse測試，並依公開onboarding／account模式重新檢查本政策。
 
 本專案對從 Chrome APIs 取得資訊的使用遵守 Chrome Web Store User Data Policy，包括 Limited Use requirements。詳見 [Chrome Web Store Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use)。
+
+Chrome 於 2026-07-01 公布的 [Chrome Web Store policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 要求所有資料收集都向使用者顯著揭露，不再因為資料與 single purpose 密切相關而省略，並自 2026-08-01 起執行。`0.1.2` 的設計在設定頁先顯示服務目的地、Website content／Authentication information 的用途及第三方 Groq，再由使用者按「同意並儲存、測試」；新聞文字另須在 side panel 預覽後按「確認並開始朗讀」才傳送，本機音訊保存則維持 default-off explicit opt-in。這些 in-product affirmative-consent 與 listing／policy 文案符合目前設計要求，但 Dashboard 仍必須新增 Authentication information 並上傳 `0.1.2`，完成前不得視為 CWS disclosure 已同步。
 
 ## 政策更新
 

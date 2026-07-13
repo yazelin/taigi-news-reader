@@ -4,7 +4,7 @@
 
 ## 準備
 
-1. 在 `extension/` 執行 `npm ci && npm run build`，使用最新穩定版 Chrome，以「載入未封裝項目」載入 `extension/dist/`。
+1. Repo 開發測試可在 `extension/` 執行 `npm ci && npm run build` 後載入 `extension/dist/`。Release 驗收必須另把 exact `extension/release/taigi-news-reader-0.1.2.zip`（50,789 bytes；SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`）解壓到空目錄，以最新穩定版 Chrome 的 fresh profile 載入；不得用 `dist/` 結果代替 exact-package evidence。
 2. 在設定頁明確填入測試 backend URL 與該環境專用的邀請碼。開發時可用 `http://127.0.0.1:8765`；正式情境必須用營運方 HTTPS URL。若 local backend 未啟用 strict token auth，可輸入只供本機的非空 placeholder；不可拿 production／reviewer token做 local test。
 3. 先以 `TAIGI_PROVIDER_MODE=mock` 啟動開發後端，確認 `http://127.0.0.1:8765/health` 正常。測 strict auth／quota 時另用測試專用的高熵 tokens 與暫存 SQLite，不讀取或輸出 production secrets。
 4. 準備三種頁面：一般新聞、動態載入新聞、非新聞頁。
@@ -50,10 +50,12 @@
 - [ ] 清除設定會移除 `taigiSettings` 與舊 origin permission；切換成功也會移除舊 origin permission。Network 確認 token 從未送到 redirect、`/health` 或其他網域。
 - [ ] 每個非-preflight `/v1/` request 缺少或帶錯 `X-Taigi-Extension-Id` 都回 403；正確 header 的 GET poll 即使沒有 `Origin` 仍可通過，以涵蓋 Chrome 可能省略 Origin 的行為。
 - [ ] 正確 header 搭配另一個 extension ID 的 Origin，或任意網站 Origin，仍回 403；allowed preflight 的 exact extension Origin 可協商 `content-type,x-taigi-extension-id`。
-- [ ] `/health` 不以 extension header 當授權條件，但仍受 LAN allowlist、health rate limit／connection limit 保護，且 response 不含新聞內容或 secret。
-- [ ] 從不在允許網段的 client 測試會被 edge 拒絕；在允許 LAN 中逐步觸發每 IP rate／connection limit，確認 429／拒絕不洩漏內部秘密。只有偽造正確 header／Origin 不能繞過網段邊界。
+- [ ] `/health` 不以 extension header／invite token 當授權條件，且 response 不含新聞內容或 secret。LAN profile仍受subnet allowlist；private-beta profile對外公開health但套獨立的direct-IP rate／connection limits並移除Authorization。
+- [ ] LAN profile從不在允許網段的client會被拒絕。Private-beta profile則從外網逐步觸發每IP rate／connection limit與host-wide connection cap，確認429／拒絕不洩漏內部秘密；不得把LAN allowlist誤寫成Internet beta控制。
 - [ ] 明確記錄 extension header 與 Origin 都可被非瀏覽器 client 偽造，不把它們列為 authentication；真正 authentication 是逐人 invite bearer token，但仍須搭配 quota 與 edge controls。
 - [ ] 過大 request、provider timeout 都回傳可理解且不洩漏內部秘密的錯誤。
+- [ ] Strict invite-token backend 在 `TAIGI_ALLOW_DIRECT_SYNTHESIS=true` 時啟動 fail closed；private-beta edge 的 `POST /v1/synthesize` 固定 404，只有 local/default development可保留direct diagnostic route。
+- [ ] Private-beta effective container顯示600 source characters、2,000 translated characters、16 MiB audio、2 GiB hard memory/no-swap與4-CPU quota；不要把16 MiB描述成固定音訊秒數。
 
 ## C. 驗證、配額與工作隔離
 
@@ -61,14 +63,17 @@
 
 - [ ] Server 設定每位 tester 的 stable pseudonymous subject 與 SHA-256 digest，不保存 raw token；每位 token 不同且可個別撤銷。Extension／ZIP／public docs／logs 都找不到 raw token 或 provider key。
 - [ ] `/v1/access` 回目前 subject 的 UTC date、reset timestamp 與 per-subject／global `limits/used/remaining`；response 不含 raw token、digest、新聞或其他 subject 用量明細。
+- [ ] Options page儲存後與side panel啟動／每次remote job後，都顯示該subject剩餘jobs／characters及UTC reset；global額度只用於判斷服務上限，不顯示其他subject的used counts。
 - [ ] 接受一個 job 後，subject／global jobs 各加 1、characters 依 request 的 stripped text 長度增加；provider 後續失敗或 STOP 取消也不退 quota。因 active／outstanding capacity 拒絕且尚未 admission 的 request 不計 quota。
 - [ ] 分別觸發 subject jobs、subject characters、global jobs、global characters 上限；每次都回 generic 429，並有正確 `Retry-After`、`X-RateLimit-Reset`、`Remaining=0` 與 scope，UTC 午夜後可重新使用。
 - [ ] Restart backend 後同一 UTC 日的計數仍存在；SQLite schema／rows 只有 `utc_date/subject/jobs/characters`。跨 UTC 午夜操作會移除舊日期 rows，不保留新聞、音訊、raw token 或 digest。
 - [ ] Token A 建立的 pending／completed job，Token B 對同 ID 的 GET／DELETE 都得到與 unknown job 相同的 404；A 仍能完成或取消，沒有 ownership leakage。
-- [ ] Terminal completed／failed result第一次 GET 正常；第二次 GET 為 404，隨後 owner DELETE tombstone 仍回 204。大型 WAV 不能靠重複 GET 放大 egress。
-- [ ] 分別觸發每 subject outstanding jobs、global outstanding jobs、active jobs、per-subject terminal bytes與global terminal bytes caps；回 429 或安全 terminal failure，不持續增加 process memory。TTL 後 terminal／tombstone 被清除。
+- [ ] Terminal completed／failed result第一次GET取得one-shot delivery lease，第二次GET為404。以慢send與client disconnect fixture確認payload／retained bytes保留到body send成功或失敗finalizer才釋放；finalizer後owner DELETE tombstone仍回204，大型WAV不能靠重複GET放大egress。
+- [ ] 在terminal response仍傳送時並行DELETE：DELETE立即回204並隱藏job，但replacement job仍因retained-byte cap被拒；send finalizer釋放lease後才可取得capacity，且record依delete-request完成移除。
+- [ ] DELETE pending、已進入non-cooperative provider thread的job：owner立即看不到、重複DELETE維持204，但active／outstanding capacity到provider真正返回前不下降；create/delete loop不能製造平行MMS推論。
+- [ ] 分別觸發每subject outstanding jobs、global outstanding jobs、active jobs、per-subject terminal bytes與global terminal bytes caps；回429或安全terminal failure，不持續增加process memory。TTL後terminal／tombstone／stale delivery lease被清除。
 - [ ] Nginx 以 client IP 分別限制 health、access、create、poll／delete request rate與同時 connection；429／拒絕不回顯 Authorization 或內部設定。Backend access logs 不記 `/v1/` request body或 token。
-- [ ] Private beta 只有一個 backend worker／replica，quota SQLite 位於 durable volume；restart／rollback smoke 通過。未改成 shared job registry 前，不做 multi-worker deployment。
+- [ ] Private beta 只有一個 backend worker／replica，quota SQLite 位於 durable volume；effective Compose 另顯示 2 GiB memory、`memswap_limit=2 GiB`（沒有額外 swap）、4 CPUs、600 source characters、2,000 translated characters、16 MiB audio，以及每 subject 每 UTC 日 20 jobs／12,000 characters、全域 100 jobs／60,000 characters。Restart／rollback smoke 通過；未改成 shared job registry 前，不做 multi-worker deployment。
 - [ ] 從 operator LAN 外以 reviewer 網路完成 `/health`、`/v1/access`、job、one-shot GET、DELETE 與 quota smoke；這項通過前不得宣稱 reviewer endpoint 可用或送審。
 
 ## D. 本機重播與隱私
@@ -113,6 +118,7 @@
 - [ ] 人名、台灣地名、日期、金額、百分比與英文縮寫仍可理解。
 - [ ] 語速調整有效，不造成嚴重失真；停止操作能中止目前播放。
 - [ ] 文章分段後停頓自然，沒有漏句、重複或順序錯亂。
+- [ ] 使用超限fixture確認MMS在waveform tensor完成後、`.tolist()`前以`numel()`拒絕，WAV encoder也拒絕超限iterable／bytes；記錄這不是pre-forward guarantee，model forward仍可能先配置輸出／內部tensor，container memory cap才是額外邊界。
 
 ## F. 母語者與長輩驗收
 

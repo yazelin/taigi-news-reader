@@ -29,7 +29,7 @@
 
 新聞文字只有在你確認後才送到設定頁顯示的語音服務。套件不送出 Cookie、網站登入資訊、完整 HTML、新聞網址或瀏覽紀錄。推薦的非商用服務使用 Groq inference 做翻譯，再由伺服器上的真正台語 TTS 產生音訊；mock 音訊會明確標示「測試音訊（不是台語 TTS）」。也可以改用你信任的 HTTPS 自架服務。
 
-私人測試期間需要管理者逐人提供的邀請碼。它只用來驗證推薦語音服務，不是 Groq／Gemini API key；明碼保存在這個 Chrome profile、綁定服務網域，且只送到該網域的 `/v1/`。每位測試者與整體服務都有每日工作數及字元數配額。
+私人測試期間需要管理者逐人提供的邀請碼。它只用來驗證推薦語音服務，不是 Groq／Gemini API key；明碼保存在這個 Chrome profile、綁定服務網域，且只送到該網域的 `/v1/`。設定頁與側邊欄會顯示個人剩餘的每日工作數／字元數及 UTC 重置時間；整體服務也有不向個別使用者揭露其他人明細的每日上限。
 
 本機重播預設關閉。主動開啟後，最多保留最近 5 篇、合計 50 MiB、最後播放後 7 天的音訊；可逐筆刪除、清除全部，或關閉功能立即清除。詳細資料處理方式請看隱私政策。
 
@@ -44,7 +44,7 @@
 - Privacy policy URL：`https://github.com/yazelin/taigi-news-reader/blob/main/PRIVACY.md`，送審前以未登入視窗確認可公開讀取。
 - Mature content：No。
 - Payments／in-app purchases：No。
-- 建議 first release 先用 Private trusted testers；Private、Unlisted、Public 仍接受相同 policy review。
+- Dashboard 已儲存 Private distribution，publisher account 也已加入 trusted testers；不需重做這兩項。Private、Unlisted、Public 仍接受相同 policy review。`0.1.2` ZIP 上傳、Authentication information checkbox、更新後的詳細描述與 test instructions 尚未完成。
 
 ### 圖像
 
@@ -93,14 +93,16 @@
 
 Chrome 要求 Dashboard disclosures、privacy policy 與實際行為一致；見 [Fill out the privacy fields](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy)、[User Data FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq/) 與 [Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use)。
 
+Chrome 在 2026-07-01 公布的 [CWS policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 明確把顯著告知擴大到**所有**資料收集，不論是否與 single purpose 密切相關，並自 2026-08-01 起執行。`0.1.2` 的設計已在 options page 顯示 Website content、Authentication information、目的地與 Groq data flow，再要求使用者按「同意並儲存、測試」；每次新聞另在 side panel 預覽後按「確認並開始朗讀」才傳送，replay audio 維持 default-off explicit opt-in。Listing 的詳細描述與本政策也同步揭露這三層。這是設計／package 狀態，Dashboard 仍必須勾選 Authentication information並上傳 `0.1.2`，不能把 repo 文案當成已完成 Dashboard 更新。
+
 ## Reviewer test instructions
 
-1. 使用待送審的 exact `0.1.2` ZIP 安裝，Chrome 116+。Reviewer 不需網站帳號；需要一組只供審查、可撤銷且具有足夠 quota 的個別邀請碼。只透過 Dashboard 的 reviewer credential／test instructions 安全欄位提供，絕不寫入 repo、listing 或 screenshot。
+1. 使用待送審的 exact `0.1.2` ZIP 安裝，Chrome 116+；目前候選檔是 50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。Reviewer 不需網站帳號；需要一組只供審查、可撤銷且具有足夠 quota 的個別邀請碼。只透過 Dashboard 的 reviewer credential／test instructions 安全欄位提供，絕不寫入 repo、listing 或 screenshot。
 2. 開啟設定，按「使用建議的非商用服務」，輸入 reviewer 邀請碼，確認資料傳輸告知後接受 exact-origin optional permission，再按「同意並儲存、測試」。預期 `/v1/access` 驗證成功；錯誤邀請碼顯示已撤銷／無效且不保存新設定。
 3. 確認 `https://ching-tech.ddns.net/taigi-tts/health` 直接回 JSON，內容是 production 預期的 `mode=concrete`、Groq translator identity 與真正台語 synthesizer identity；不得回網站 HTML，也不得是 mock。Health request 不帶 Authorization。
 4. 開啟一篇公開繁中新聞，按 extension action，再按「讀取這一頁」。檢查預覽後按「確認並開始朗讀」。
-5. 預期 UI 依序顯示 preparing／playing／completed，可暫停、繼續、停止；失敗時會顯示可理解錯誤，不會改用華語 voice。每個 `/v1/` POST／GET／DELETE 帶同一 reviewer bearer token，且 token 只送到 configured origin。
+5. 預期 UI 依序顯示 preparing／playing／completed，可暫停、繼續、停止；失敗時會顯示可理解錯誤，不會改用華語 voice。每個 `/v1/` POST／GET／DELETE 帶同一 reviewer bearer token，且 token 只送到 configured origin。Options／side panel 顯示該 reviewer 的剩餘日額度與 UTC reset；不顯示其他 subject 用量。
 6. 開啟本機重播，完成一篇後再次 START；預期 cache hit，不送 `/health` 或 synthesis。從 history 重播也不送 synthesis。清除全部後 history 與 IndexedDB 為空，且 history／player state／job record 不含 invite token。
-7. Review notes 補充：新聞頁只透過 `activeTab` 在使用者操作後讀取；任意 HTTPS pattern 是為 user-selected backend，實際只 runtime-request exact origin；所有 remote responses 都是 data，不是 executable code。套件對 `/health`、POST／GET／DELETE 都帶固定的公開 extension ID header；`/v1/` 另要求逐人 bearer token並綁定 job owner。Header／Origin 不是 secret；server token config 只有 SHA-256 digest＋stable subject。服務另有 per-subject／global UTC daily jobs＋characters quotas、job/result caps 及 edge per-IP limits。
+7. Review notes 補充：新聞頁只透過 `activeTab` 在使用者操作後讀取；任意 HTTPS pattern 是為 user-selected backend，實際只 runtime-request exact origin；所有 remote responses 都是 data，不是 executable code。套件對 `/health`、POST／GET／DELETE 都帶固定的公開 extension ID header；`/v1/` 另要求逐人 bearer token並綁定 job owner。Header／Origin 不是 secret；server token config 只有 SHA-256 digest＋stable subject。Private beta 只暴露 async routes，direct synthesis 固定 404；另有 per-subject／global UTC daily quotas、delivery lease／job-result caps 及 edge per-IP limits。
 
 送審前先用 isolated Chrome profile 重跑以上流程，並保留 `/health` 無 Authorization、`/v1/access`、authenticated POST／GET／DELETE、cross-subject 404、one-shot terminal result、quota 429、cache hit 與清除證據。Reviewer backend 必須在整個 review 期間穩定可用，edge／backend allowlist 與 CORS 必須包含 Dashboard 分配的正式 extension ID，並套每 IP limits。若服務只允許 operator LAN，仍須先解決 CWS reviewer 從外部無法重現的問題；程式碼已有 authentication／quota 不代表 external endpoint 已部署或驗證。
