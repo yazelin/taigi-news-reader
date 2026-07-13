@@ -2,21 +2,22 @@
 
 稽核更新：2026-07-14；live private-beta 證據日期：2026-07-13
 
-結論：**正式 Item ID 已固定；`0.1.2` source／automated checks／exact ZIP、`.11` live private-beta、非 LAN 完整 job與fresh-profile Chromium E2E均已通過。2026-07-14 已上傳exact ZIP，並重載確認package、616-character description、assets、Privacy disclosures／certifications／URL與test instructions；Distribution維持Private。先前曝光的Groq／Gemini keys撤銷仍未明確確認，因此仍不可按Submit for Review。** Dashboard draft完整不等於CWS已收件、已審查或已發佈。
+結論：**正式 Item ID 已固定；`0.1.2` engineering／live-service／Dashboard基線均已完成，operator也明確確認先前曝光的Groq／Gemini keys全部撤銷。2026-07-14 在Submit dialog取消「通過審查後自動發布」後成功提交；Status reload顯示「這個草稿尚待審查」。** 現在是Private／deferred／pending review，不是approved或published；review期間仍須維持backend與reviewer credential可用。
 
 本稽核以 2026-07 可取得的 Chrome 官方文件為準；provider data gate 另只引用 Groq／Google 官方文件。
 
-## Release blockers
+## Current review state
 
-| 優先級 | Blocker | 完成條件 |
+| 項目 | 已確認狀態 | 邊界 |
 | --- | --- | --- |
-| P0 | 舊 Groq／Gemini keys 撤銷尚未完成 release attestation | Operator 已在 Groq Console 人工確認 production project 啟用 ZDR，replacement Groq key 也已由成功 live job 證明 active；但這不能證明先前曝光的 Groq 或 Gemini keys 已失效。須逐一明確確認舊 keys 已撤銷，並保存不含 key／內容的日期與操作者 evidence。 |
-| P0 | Gemini Free 與 CWS Limited Use 風險 | 公開推薦 endpoint 不得使用 Gemini unpaid quota。Gemini 保留為 self-hosted optional adapter；若未來要公開採用，只能在重新做 provider terms／privacy review、更新 UI／listing／policy 後切換。Google 官方條款明載 unpaid inputs／outputs 可用於改善產品且可能由 human reviewers 處理。 |
-| P0 | Submission 尚未授權／執行 | Package、Privacy、test instructions、reviewer credential及Private distribution均已儲存；同credential live smoke也已成功。Submit button雖已enabled，但在舊keys撤銷證據完成前不得click。文件不可宣稱已submitted、in review或published。 |
+| Provider secrets | Operator明確確認先前曝光的Groq／Gemini keys均已撤銷；replacement Groq key與ZDR維持active。撤銷後reviewer smoke再次成功。 | Evidence不得包含raw key、token、digest、email或測試文字。 |
+| CWS submission | Private item已提交；success modal明示submission成功，Status reload為「這個草稿尚待審查」。 | Pending review不等於approved。 |
+| Publishing | Submit dialog已取消「通過審查後自動發布」；success modal提示通過後有30天publish window。 | Deferred不會自動發布；目前也尚未published。 |
+| Gemini Free guardrail | 推薦endpoint仍使用Groq；Gemini只保留self-hosted optional adapter。 | 未來若公開採用Gemini unpaid quota，必須重做terms／privacy／Limited Use review。 |
 
 官方依據：Chrome 要求 manifest root ZIP、name／version／icons／description，且每次更新 version 必須增加；見 [Prepare your extension](https://developer.chrome.com/docs/webstore/prepare)。Listing 缺 description、icon 或 screenshots 會被拒；圖像尺寸見 [Supplying Images](https://developer.chrome.com/docs/webstore/images)。處理 website content，即使只存在本機，也要揭露並提供 privacy policy；見 [User Data FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq/) 與 [Privacy practices](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy)。
 
-Dashboard 允許先上傳 ZIP 後編輯草稿，直到按 Submit for Review 才進入審查；官方也明確說明可在未發佈前由 Package 頁取得 public key 來固定開發版 ID，見 [Publish in the Chrome Web Store](https://developer.chrome.com/docs/webstore/publish/) 與 [Manifest `key`](https://developer.chrome.com/docs/extensions/reference/manifest/key)。Chrome 在 **2026-07-01** 公布的 [2026 policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 要求所有資料收集都顯著揭露，不再因資料與 single purpose 密切相關而免除，並自 **2026-08-01** 起執行。`0.1.2` options affirmative consent、新聞 preview＋confirm、default-off replay opt-in及listing／policy文案符合目前設計方向；2026-07-14已將Remote code=No、Website content＋Authentication information、certifications及privacy URL儲存並重載確認。這是draft disclosure evidence，不是submission。
+Dashboard 允許先上傳 ZIP 後編輯草稿，直到按 Submit for Review 才進入審查；官方也明確說明可在未發佈前由 Package 頁取得 public key 來固定開發版 ID，見 [Publish in the Chrome Web Store](https://developer.chrome.com/docs/webstore/publish/) 與 [Manifest `key`](https://developer.chrome.com/docs/extensions/reference/manifest/key)。Chrome 在 **2026-07-01** 公布的 [2026 policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 要求所有資料收集都顯著揭露，不再因資料與 single purpose 密切相關而免除，並自 **2026-08-01** 起執行。`0.1.2` options affirmative consent、新聞 preview＋confirm、default-off replay opt-in及listing／policy文案符合目前設計方向；Remote code=No、Website content＋Authentication information、certifications及privacy URL已隨Private item提交，目前等待review。
 
 Groq 官方說明指出 inference inputs／outputs 預設不保留，但 reliability／abuse logs 最多可能保留 30 天，所有客戶可啟用 ZDR；見 [Your Data in GroqCloud](https://console.groq.com/docs/your-data)。Groq 的 [Services Agreement](https://console.groq.com/docs/legal/services-agreement) 說 Inputs／Outputs 不用於 training／fine-tuning，除非 customer 明確授權。相較之下，[Gemini API Additional Terms](https://ai.google.dev/gemini-api/terms) 說 Unpaid Services 內容可用於改善產品並可能由 human reviewers 處理；Chrome [Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use) 對 human access／data transfer 有嚴格限制。
 
@@ -42,13 +43,13 @@ Groq 官方說明指出 inference inputs／outputs 預設不保留，但 reliabi
 - `.github/workflows/store-package.yml` 只有手動 `workflow_dispatch`，執行 tests／lint／build／package 並上傳短期 artifact；它沒有 CWS token、登入、upload 或 publish 步驟。
 - 自動基線為 extension ESLint／production build／`82/82` tests，以及 backend `166 passed`。Backend新增anti-abuse regressions涵蓋send failure仍release delivery lease、concurrent DELETE retained-byte accounting、pending DELETE capacity、non-cooperative MMS timeout/cancel single-flight、pre-`.tolist()` cap、strict direct disable與private-beta ingress／resource limits；NGINX 1.29.3兩組`nginx -t` harness及edge 403／429 CORS、method gate容器行為測試通過。POJ normalization仍只處理安全 typography，中文、數字、不支援拉丁字母及symbols fail closed。
 - `deploy/private-beta/` 提供Internet-facing ingress／Compose override與rollback runbook，static tests鎖定600／2,000／16 MiB、2 GiB/no-swap、4 CPU、single worker、direct 404、pinned CORS、source-IP limits及no request-body logging。2026-07-13 已將此profile套用到`.11`：backend沒有host port，durable quota database已掛載，effective resource limits與single-worker contract相符。
-- Live `.11` matrix 已確認缺少／錯誤 credential 為 401、cross-subject access 為與 unknown job 相同的 404、實際 quota exhaustion 為 429、direct route 為 404，CORS pin 正式 extension ID。Operator 人工確認 Groq production project 啟用 ZDR，replacement key 也以成功 Groq＋MMS job證明active；舊曝光Groq／Gemini keys撤銷仍待明確確認。
+- Live `.11` matrix 已確認缺少／錯誤 credential 為 401、cross-subject access 為與 unknown job 相同的 404、實際 quota exhaustion 為 429、direct route 為 404，CORS pin 正式 extension ID。Operator 人工確認 Groq production project 啟用 ZDR、replacement key active，並於2026-07-14明確確認舊曝光Groq／Gemini keys均已撤銷。
 - 從operator LAN外經Tor出口完成推薦endpoint TLS、`/v1/access`與完整Groq＋MMS job；外部reachability不再是未驗證項目。服務在review期間仍需維持監控、容量與個別reviewer token。
 - Chromium `150.0.7871.46` isolated-profile strict mock E2E 已用 production `dist/` 的 test-only copy 通過 POST 202 → GET 200 → DELETE 204、offline START `cacheHit=true` 與 explicit REPLAY `cacheHit=true`。Test copy 只為繞過原生 prompt 額外授予 localhost host permission，正式 manifest 沒有 required host permissions。
-- 正式 CWS ID 的 exact `0.1.2` ZIP 已在 fresh Chromium profile 註冊為 `nejhlfbnjkbdjcaaklaofggkikdlpakn`，通過原生 exact-origin optional permission、subject quota／UTC reset顯示、live Groq＋MMS playback與history。從history重播後，新增health及backend job requests均為0。Exact package後續已上傳，但尚未提交review。
+- 正式 CWS ID 的 exact `0.1.2` ZIP 已在 fresh Chromium profile 註冊為 `nejhlfbnjkbdjcaaklaofggkikdlpakn`，通過原生 exact-origin optional permission、subject quota／UTC reset顯示、live Groq＋MMS playback與history。從history重播後，新增health及backend job requests均為0。Exact package後續已提交Private review。
 - Dashboard Privacy已儲存並重載確認Remote code=No、Website content＋Authentication information、certifications及privacy URL。Test instructions於2026-07-14儲存，username為`cws-reviewer`、instructions counter為360/500；64-character raw credential只存在Dashboard password欄，repo／文件／evidence均不得保存value或digest。Distribution為Private。
-- Public homepage、support及privacy URL已由未登入HTTP client確認回200。Submit button已enabled但未click；enabled只代表Dashboard允許進入送審流程，不代表hard gates完成。
-- 同一reviewer credential的live smoke成功：access ok，POST 202後完成`audio/wav`，`audio_base64`長度84,028 characters，cleanup DELETE 204；subject quota由20 jobs／12,000 characters變成remaining 19／11,993。證據不包含credential、digest或測試文字。
+- Public homepage、support及privacy URL已由未登入HTTP client確認回200。Submit dialog取消automatic publishing後已提交；success modal提示通過後30天publish window，Status reload顯示草稿尚待審查。
+- 舊Groq／Gemini keys撤銷後，以同一reviewer credential重跑live Groq→MMS smoke：access ok，POST 202後completed `audio/wav`，`audio_base64`長度51,260 characters，cleanup DELETE 204；subject quota由remaining 19 jobs／11,993 characters變成18／11,986。證據不包含credential、digest、email或測試文字。
 - 正式 CWS ID 的 exact-package production E2E 已解壓 SHA-256 `978551ea279f4a8d62d5e3789954b8a0e103a0bc9f5b98ca0d16f5893ef8a40c` 的 `0.1.1` ZIP 到全新 profile，確認 runtime ID／version、原生 optional permission 與 fresh history `0 → 1`。Concrete Groq＋MMS 產生 239,660-byte `audio/wav` RIFF/WAVE，header 宣告長度相符，offscreen ended protocol 後 UI 才成為 `completed 1/1`；按可見重播按鈕後為 `playing → completed`，replay baseline 後 backend／health／job requests 全為 0。首次 START 前未啟用 Network instrumentation，因此不宣稱該輪精確 POST／GET／DELETE 次數。
 - Chromium `149.0.7827.55` 曾以當時未修改的 production `dist/` 與舊 unpacked ID 實際通過 Chrome 原生 optional-permission prompt、action／activeTab、side panel 擷取、concrete Groq＋MMS job，offscreen audio `ended`後 `completed`、history 與按鈕 replay。首次播放取得 189,484-byte RIFF/WAVE；replay 新增 health、job API 及全部 backend request 均為 0。同次測試曾重現 80 字新聞被 punctuation／`ⁿ` 擋下，extension 正確 fail without fake audio；保守 normalization 修正 `253300c` 部署後，同 80 字 production job 產生 932,908-byte RIFF/WAVE 並 DELETE 204。這只保留為舊 ID 的歷史 production 證據。
 
@@ -62,10 +63,10 @@ Groq 官方說明指出 inference inputs／outputs 預設不保留，但 reliabi
 2. 已把 public key 放入 source manifest 的 `key`，正式 ID 也已 pin 到 live edge／backend。`0.1.2` exact artifact、fresh-profile／external E2E及Dashboard upload均已完成，package version／permissions已重載確認。Public key可公開，但CWS signing private key／OAuth token不得放進repo。
 3. Live server已provision不同高熵token對應的stable subjects；Dashboard reviewer username為`cws-reviewer`，64-character raw credential只存在password欄。Server只保存SHA-256 mapping；raw token或digest不得放進git、extension ZIP、listing、instructions本文、screenshot或release evidence。
 4. Repo 階段已確認 `src/manifest.json` 與 `package.json` version 都是 `0.1.2`，backend `166 passed`、extension `82/82`＋lint／build與`npm run package:store`通過；固定 artifact bytes／hash如上。任何後續 source改動都要bump version或至少重建、重算hash並重跑同級checks。
-5. `.11` single-worker backend、durable quota volume、nginx edge、600／2,000／16 MiB、2 GiB/no-swap／4 CPU caps與非LAN smoke已完成；Groq ZDR由operator確認、replacement key已active。仍須明確確認舊曝光Groq／Gemini keys已撤銷，並持續保留monitoring／rollback readiness。
+5. `.11` single-worker backend、durable quota volume、nginx edge、600／2,000／16 MiB、2 GiB/no-swap／4 CPU caps與非LAN smoke已完成；Groq ZDR／replacement key active與舊Groq／Gemini keys撤銷均由operator明確確認。持續保留monitoring／rollback readiness。
 6. Exact ZIP的fresh-profile正式ID、native permission、quota、playback／history／zero-request replay及非LAN endpoint flow已留下證據；Dashboard同credential live smoke也已完成。
 7. Dashboard已儲存Private distribution、package、616-character description、assets、Privacy practices與360/500 test instructions，並重載確認；所有visibility都走相同policy review，見[Distribution](https://developer.chrome.com/docs/webstore/cws-dashboard-distribution/)。
-8. 目前停在已儲存的Private draft。明確確認舊Groq／Gemini keys撤銷後，才由操作者決定是否click已enabled的Submit for Review；送審dialog必須取消automatic publishing checkbox以保留deferred publishing。現在尚未click，也不得宣稱in review或published。
+8. Submit dialog已取消automatic publishing checkbox後成功送出；success modal確認submission及30天publish window。Status reload為「這個草稿尚待審查」。目前是Private／deferred／pending review；等待審查期間不得宣稱approved或published。
 
 ### Private → Public 升版
 

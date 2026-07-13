@@ -2,7 +2,7 @@
 
 稽核更新：2026-07-14；live private-beta 證據日期：2026-07-13
 
-這份文件是可貼入 Developer Dashboard 的 release copy。Live endpoint、operator-confirmed Groq ZDR、非LAN job與exact `0.1.2` fresh-profile flow已驗證；2026-07-14 也已儲存package、listing、Privacy及test instructions。先前曝光的Groq／Gemini keys撤銷仍未明確確認，且尚未按Submit for Review。
+這份文件是已提交 Developer Dashboard 的 release copy。Live endpoint、operator-confirmed Groq ZDR、非LAN job與exact `0.1.2` fresh-profile flow已驗證；2026-07-14 也已儲存package、listing、Privacy及test instructions。Operator已明確確認先前曝光的Groq／Gemini keys均撤銷，並在撤銷後完成reviewer smoke。CWS目前是Private／deferred／pending review，不是approved或published。
 
 ## Store listing
 
@@ -49,7 +49,8 @@
 - Dashboard 目前有 128x128 icon、一張 1280x800 screenshot 與 440x280 promo。Privacy 已儲存並重載確認 Remote code=No、Website content＋Authentication information、certifications 與 privacy URL。
 - Test instructions 已於 2026-07-14 儲存：username 是 `cws-reviewer`，64-character raw credential 只存在 Dashboard password 欄，instructions counter 是 360/500。文件、repo 與 evidence 不得保存該 value 或 digest。
 - Homepage、support 與 public privacy URL 已從未登入 HTTP client 確認回 200。
-- Distribution 維持 Private；Submit for Review button 已 enabled 但目前尚未 click。舊 keys 撤銷 gate 完成、真正送審時，必須在 dialog 取消 automatic publishing checkbox以選擇deferred publishing。
+- Operator 已明確確認先前曝光的Groq／Gemini keys均撤銷。Submit dialog取消「通過審查後自動發布」後已成功送出；success modal明示submission完成並提示通過審查後有30天publish window。
+- Distribution 維持 Private；Status頁reload顯示「這個草稿尚待審查」。目前是deferred／pending review，不是approved或published。
 
 ### 圖像
 
@@ -110,4 +111,4 @@ Chrome 在 2026-07-01 公布的 [CWS policy update](https://developer.chrome.com
 6. 開啟本機重播，完成一篇後再次 START；預期 cache hit，不送 `/health` 或 synthesis。從 history 重播也不送 synthesis。清除全部後 history 與 IndexedDB 為空，且 history／player state／job record 不含 invite token。
 7. Review notes 補充：新聞頁只透過 `activeTab` 在使用者操作後讀取；任意 HTTPS pattern 是為 user-selected backend，實際只 runtime-request exact origin；所有 remote responses 都是 data，不是 executable code。套件對 `/health`、POST／GET／DELETE 都帶固定的公開 extension ID header；`/v1/` 另要求逐人 bearer token並綁定 job owner。Header／Origin 不是 secret；server token config 只有 SHA-256 digest＋stable subject。Private beta 只暴露 async routes，direct synthesis 固定 404；另有 per-subject／global UTC daily quotas、delivery lease／job-result caps 及 edge per-IP limits。
 
-2026-07-13 已用 exact `0.1.2` ZIP 的 fresh Chromium profile通過正式ID、原生optional permission、quota、playback／history與replay zero-backend-request；非LAN Tor路徑也完成TLS、`/v1/access`與完整job。2026-07-14 再以Dashboard同一reviewer credential做live smoke：access成功，job由POST 202到completed，回傳`audio/wav`且`audio_base64`為84,028 characters，cleanup DELETE為204；個人quota從20 jobs／12,000 characters變成remaining 19／11,993。這些證據不記raw credential、digest或測試文字。Dashboard內容已儲存但尚未Submit for Review；送審後仍須讓backend在整個review期間保持可用。
+2026-07-13 已用 exact `0.1.2` ZIP 的 fresh Chromium profile通過正式ID、原生optional permission、quota、playback／history與replay zero-backend-request；非LAN Tor路徑也完成TLS、`/v1/access`與完整job。2026-07-14 在舊Groq／Gemini keys撤銷後，以Dashboard同一reviewer credential重跑live Groq→MMS smoke：access成功，job由POST 202到completed，回傳`audio/wav`且`audio_base64`為51,260 characters，cleanup DELETE為204；個人quota從remaining 19 jobs／11,993 characters變成18／11,986。這些證據不記raw credential、digest、email或測試文字。Item已提交且等待Private review；backend在整個review期間必須保持可用。

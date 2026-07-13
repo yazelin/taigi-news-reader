@@ -27,7 +27,7 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 這條 async-job 路徑已完成 Chromium 150 final：37.01 秒 fixture 合成期間 UI 仍是 `preparing`、service worker 全程存活，完成 37 次短 GET 且 backend 維持 1 個 active job；按 STOP 後 DELETE 回報 `found=true`，active job 歸零且 session 中的 active job id 已清除。真實 Gemini 3.5 Flash + 本機 MMS 的 116 字新聞也從 START 在 50.25 秒進入 `playing`，完成 job 隨即 DELETE，offscreen 成功播放音訊；PAUSE／RESUME／STOP 狀態與 backend cleanup 均通過。
 
-目前 `0.1.2` 工程基線為 extension `82/82` tests 加 ESLint／production build、backend `166 passed`，並已產生可重現的正式 ID artifact `extension/release/taigi-news-reader-0.1.2.zip`：50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。Private-beta ingress、非 LAN 完整工作與 exact-package fresh-profile Chromium E2E 也已通過。2026-07-14 已把同一 exact ZIP 上傳 CWS，Dashboard 顯示 `0.1.2` 並確認 package permissions；但尚未按 Submit for Review。
+目前 `0.1.2` 工程基線為 extension `82/82` tests 加 ESLint／production build、backend `166 passed`，並已產生可重現的正式 ID artifact `extension/release/taigi-news-reader-0.1.2.zip`：50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。Private-beta ingress、非 LAN 完整工作與 exact-package fresh-profile Chromium E2E 也已通過。2026-07-14 已把同一 exact ZIP 上傳並提交 CWS；Status reload 顯示「這個草稿尚待審查」。目前是 Private／deferred／pending review，不是 approved 或 published。
 
 更完整的元件邊界與正式環境方向見 [docs/architecture.md](docs/architecture.md)。
 目前已實際驗證到哪裡、哪些仍待真人測試，見 [docs/validation.md](docs/validation.md)。
@@ -40,10 +40,9 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 Live edge／backend 已驗證正式 extension ID 與 CORS pinning、缺少／錯誤 credential 的 401、cross-subject ownership 404、實際每日配額 429、direct synthesis 404，以及 600 source characters／2,000 translated characters／16 MiB audio 的 request caps。從 operator LAN 外經 Tor 出口完成 TLS、`/v1/access` 與完整 Groq＋MMS job，證明不再只是 LAN pilot。Exact `0.1.2` ZIP 也已在 fresh Chromium profile 以正式 ID 通過原生 optional permission、quota 顯示、真實播放、history 與 replay zero-backend-request；完整證據見 [驗證紀錄](docs/validation.md)。
 
-Operator 已在 Groq Console 人工確認 production project 啟用 ZDR，且 replacement provider key 正在供應成功請求；但先前曾曝光的 Groq／Gemini keys 是否已撤銷仍未取得明確確認，因此不能把 secret-rotation gate 標成完整結案。CWS Dashboard 已完成並重載確認 `0.1.2` package、616-character 詳細描述、Remote code=No、Website content＋Authentication information、certifications、privacy URL 與 reviewer test instructions；Distribution 維持 Private。剩餘 release gate 是：
+Operator 已在 Groq Console 人工確認 production project 啟用 ZDR，並於 2026-07-14 明確確認先前曝光的 Groq／Gemini keys 均已撤銷；replacement Groq key 正在供應成功請求。撤銷後以同一 reviewer credential 重跑 live Groq→MMS job，完成 POST 202→completed、`audio/wav`、DELETE 204，個人 quota 由 19 jobs／11,993 characters 變成 18／11,986；文件不保存 raw key、token、digest、email 或測試文字。
 
-1. 明確確認舊 Groq／Gemini provider keys 已撤銷，留下不含 key／新聞內容的時間與操作者證據。
-2. 撤銷證據完成後才由操作者決定是否按 Submit for Review。按鈕目前雖已 enabled，但尚未 click；送審 dialog 必須取消 automatic publishing checkbox，保留 deferred publishing。現在只是已儲存的 Private draft，不得宣稱已送審、已通過審查或已發佈。
+CWS Dashboard 已完成並重載確認 `0.1.2` package、616-character 詳細描述、Remote code=No、Website content＋Authentication information、certifications、privacy URL 與 reviewer test instructions；Distribution 維持 Private。Submit dialog 已取消「通過審查後自動發布」後送出，成功 modal 明示 submission 成功並提示通過審查後有 30 天 publish window。Status 頁目前仍是待審查；deferred publishing 表示即使未來通過也不會自動發佈。
 
 私人測試者安裝後，在設定頁填入營運方提供的 HTTPS URL 與自己的邀請碼；之後開啟新聞、選取文字或讓套件擷取正文，再按朗讀即可。若未設定、邀請碼被撤銷、配額已滿或後端無法連線，套件必須明確提示對應問題，不得默默改接不明遠端服務或華語 voice。
 
@@ -114,7 +113,7 @@ docker run --rm --env-file backend/.env.production \
 
 ### 從私人測試升級為公開版
 
-Private trusted testers 與 Public 可以使用同一個 Chrome Web Store item；不需建立另一個 extension ID。Dashboard 已儲存 Private distribution、publisher trusted tester、exact `0.1.2` ZIP、Privacy disclosures 與 test instructions；live ingress、operator-confirmed ZDR、非 LAN job 與 exact-package E2E 也已完成。Reviewer raw token 只存在 Dashboard password 欄，不在 repo、listing 或 evidence 中。私人版仍須確認舊 Groq／Gemini provider keys 已撤銷，之後才可人工決定是否 Submit for Review。
+Private trusted testers 與 Public 可以使用同一個 Chrome Web Store item；不需建立另一個 extension ID。Dashboard 已儲存 Private distribution、publisher trusted tester、exact `0.1.2` ZIP、Privacy disclosures 與 test instructions；live ingress、operator-confirmed ZDR、舊 Groq／Gemini keys 撤銷、非 LAN job 與 exact-package E2E 也已完成。Reviewer raw token 只存在 Dashboard password 欄，不在 repo、listing 或 evidence 中。`0.1.2` 現已用 deferred publishing 提交並等待 Private review；尚未核准或發佈。
 
 公開升版時維持同一 item ID，再將 manifest／package 版本提升（例如 `0.1.3`），上傳新 ZIP、更新 privacy／listing／review notes 並重新送審，之後才把 distribution 改成 Public。相同 item ID 讓已安裝的私人版可正常自動更新；本機設定與重播資料也保留，但若公開版更換 authentication 模式，必須提供明確 migration／sign-out 並安全清除舊 invite token。
 
