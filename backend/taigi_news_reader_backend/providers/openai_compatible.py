@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import httpx
 
@@ -14,6 +15,23 @@ from .poj import normalize_and_validate_mms_poj
 GROQ_GPT_OSS_MODELS = frozenset(
     {"openai/gpt-oss-20b", "openai/gpt-oss-120b"}
 )
+
+
+class _EmptyTranslationError(ProviderError):
+    """An otherwise valid completion response contained no translation text."""
+
+    def __init__(self, finish_reason: str | None) -> None:
+        self.finish_reason = finish_reason
+        suffix = f" (finish_reason={finish_reason})" if finish_reason else ""
+        super().__init__(
+            "OpenAI-compatible provider returned an empty translation" + suffix
+        )
+
+
+def _safe_finish_reason(value: object) -> str | None:
+    if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,64}", value):
+        return value
+    return None
 
 
 class OpenAICompatibleTranslator:
@@ -46,7 +64,24 @@ class OpenAICompatibleTranslator:
             "Chinese news passage:\n"
             + json.dumps(text, ensure_ascii=False)
         )
-        translation = await self._generate(system=SYSTEM_PROMPT, prompt=prompt)
+        try:
+            translation = await self._generate(system=SYSTEM_PROMPT, prompt=prompt)
+        except _EmptyTranslationError as first_empty:
+            try:
+                # Retry the same translation request once. Do not substitute
+                # provider reasoning, another provider, or source-language text.
+                translation = await self._generate(
+                    system=SYSTEM_PROMPT,
+                    prompt=prompt,
+                )
+            except _EmptyTranslationError as retry_empty:
+                first_reason = first_empty.finish_reason or "unavailable"
+                retry_reason = retry_empty.finish_reason or "unavailable"
+                raise ProviderError(
+                    "OpenAI-compatible provider returned an empty translation "
+                    "twice after one retry "
+                    f"(finish_reason: first={first_reason}, retry={retry_reason})"
+                ) from retry_empty
         try:
             return normalize_and_validate_mms_poj(
                 translation, provider="OpenAI-compatible provider"
@@ -95,14 +130,18 @@ class OpenAICompatibleTranslator:
             response = await self._client.post("chat/completions", json=payload)
             response.raise_for_status()
             body = response.json()
-            translation = body["choices"][0]["message"]["content"]
+            choice = body["choices"][0]
+            translation = choice["message"]["content"]
+            finish_reason = _safe_finish_reason(choice.get("finish_reason"))
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
             raise ProviderError("OpenAI-compatible translation request failed") from exc
+        if translation is None:
+            raise _EmptyTranslationError(finish_reason)
         if not isinstance(translation, str):
             raise ProviderError("OpenAI-compatible provider returned no translation")
         translation = OllamaTranslator._clean_response(translation)
         if not translation:
-            raise ProviderError("OpenAI-compatible provider returned an empty translation")
+            raise _EmptyTranslationError(finish_reason)
         if len(translation) > self.max_output_chars:
             raise ProviderError("translation exceeded the output limit")
         return translation

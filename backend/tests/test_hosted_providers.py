@@ -98,6 +98,101 @@ async def test_groq_gpt_oss_gets_model_specific_reasoning_budget(model):
     await client.aclose()
 
 
+async def test_openai_compatible_retries_first_empty_content_then_succeeds():
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {
+                            "content": "",
+                            # Reasoning is not translation and must be ignored.
+                            "reasoning": "tâi-gí m̄-sī tsit-ê",
+                        },
+                    }
+                ]
+            },
+            {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": "tâi-gí sin-bûn"},
+                    }
+                ]
+            },
+        ]
+    )
+    payloads: list[dict[str, object]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return httpx.Response(200, json=next(responses))
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.groq.com/openai/v1/",
+    )
+    provider = OpenAICompatibleTranslator(
+        base_url="https://unused",
+        api_key="secret",
+        model="openai/gpt-oss-120b",
+        timeout_seconds=1,
+        max_output_chars=500,
+        client=client,
+    )
+
+    assert await provider.translate("新聞") == "tâi-gí sin-bûn"
+    assert len(payloads) == 2
+    assert payloads[0] == payloads[1]
+    await client.aclose()
+
+
+async def test_openai_compatible_two_empty_contents_fail_after_one_retry():
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {"finish_reason": "length", "message": {"content": ""}}
+                ]
+            },
+            {
+                "choices": [
+                    {"finish_reason": "stop", "message": {"content": "   "}}
+                ]
+            },
+        ]
+    )
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json=next(responses))
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://provider.test/v1/",
+    )
+    provider = OpenAICompatibleTranslator(
+        base_url="https://unused",
+        api_key="secret",
+        model="translator-model",
+        timeout_seconds=1,
+        max_output_chars=500,
+        client=client,
+    )
+
+    with pytest.raises(ProviderError) as captured:
+        await provider.translate("新聞")
+
+    assert calls == 2
+    assert "empty translation twice after one retry" in str(captured.value)
+    assert "first=length" in str(captured.value)
+    assert "retry=stop" in str(captured.value)
+    await client.aclose()
+
+
 async def test_openai_compatible_repairs_groq_newline_and_superscript_n_regression():
     outputs = iter(["tâi-gí\nthiⁿ-khì", "tâi-gí thinn-khì"])
     payloads: list[dict[str, object]] = []

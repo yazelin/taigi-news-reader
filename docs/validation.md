@@ -6,7 +6,7 @@
 
 ## 已通過
 
-- Backend：`54 passed`，涵蓋 API schema、CORS、provider 錯誤、hosted adapters、GPT-OSS reasoning 設定與 repair、MMS WAV 封裝、POJ 字元 gate 與 HTTPS 設定。
+- Backend：`56 passed`，涵蓋 API schema、CORS、provider 錯誤、hosted adapters、GPT-OSS reasoning 設定、空回應重試與 POJ repair、MMS WAV 封裝、POJ 字元 gate 與 HTTPS 設定。
 - Extension：ESLint、`17 passed`、production build 全數通過；測試包含 action／activeTab 接線與 offscreen audio 的快速暫停競態。
 - Mock API：`GET /health` 與 `POST /v1/synthesize` 均回 200，回傳可解碼 WAV。
 - Chromium 150 有介面 E2E：build 後的 MV3 extension 已成功載入；設定頁可將 backend 儲存為 `http://127.0.0.1:8765` 並顯示連線正常。真實工具列 action click 會在使用者手勢內開啟 side panel 並取得當頁 `activeTab`，不需保留新聞頁的 persistent host permission。測試頁標題與兩段正文成功擷取為 116 字／1 段，且排除指定頁尾噪音。
@@ -20,7 +20,7 @@
 
 上述 Groq smoke 證明的是「OpenAI-compatible 翻譯 → gate-valid POJ → MMS TTS → 可解碼 WAV」在這兩次實際請求中完整跑通。POJ 字元 gate 與 WAV 格式檢查只能驗證輸入字表及音訊容器，**不代表翻譯內容、台語用詞、發音或長輩可懂度已通過**。LLM provider 的輸出具有非決定性；即使輸入、模型名稱與參數相同，後續請求仍可能產生不同結果，因此不能把單次 smoke 當成永久品質保證。
 
-有介面重測也實際觀察到這項非決定性：同一則較長新聞曾成功產生 WAV，也曾在一次 strict repair 後仍無法通過 MMS 字元 gate。後端會明確回錯而不是合成不可信輸出。GPT-OSS 現已使用 low reasoning 並保留 8,192 completion tokens，避免預設 reasoning 吃完輸出額度而回傳空內容；這修正 transport reliability，但不保證每次翻譯都能成為合法、自然的 POJ。
+有介面重測也實際觀察到這項非決定性：同一則較長新聞曾成功產生 WAV，也曾在一次 strict repair 後仍無法通過 MMS 字元 gate。後端會明確回錯而不是合成不可信輸出。GPT-OSS 現已使用 low reasoning 並保留 8,192 completion tokens；首次 translation content 為空時也會用完全相同的 provider request 自動重試一次，不會拿 reasoning、華語原文或其他 provider 冒充翻譯。這些修正改善 transport reliability，但不保證每次翻譯都能成為合法、自然的 POJ。
 
 ## 尚未通過／上線前必做
 
