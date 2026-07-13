@@ -2,7 +2,7 @@
 
 稽核日期：2026-07-13
 
-結論：**正式 Item ID 已固定，`0.1.1` package 工程基線已完成，可更新 Dashboard 草稿，但目前仍不可按 Submit for Review。** Dashboard 提供的 public key 已放入 manifest，Chrome 實際載入也確認為同一個正式 ID；更新草稿不等於送審或發佈。下列人工／營運 blockers 完成前，不應提交審查。
+結論：**正式 Item ID 已固定，`0.1.1` 是已驗證／已上傳的歷史工程基線；`0.1.2` source 已實作 private-test authentication／quota，但尚未完成 exact ZIP、外部 endpoint 與 live deployment 證據，因此仍不可按 Submit for Review。** Dashboard 提供的 public key 已放入 manifest，Chrome 實際載入也確認為同一個正式 ID；更新草稿不等於送審或發佈。下列人工／營運 blockers 完成前，不應提交審查。
 
 本稽核以 2026-07 可取得的 Chrome 官方文件為準；provider data gate 另只引用 Groq／Google 官方文件。
 
@@ -12,10 +12,10 @@
 | --- | --- | --- |
 | P0 | 推薦 backend 的資料處理尚未完成 release attestation | 正式 extension ID 已由 Dashboard public key 固定為 `nejhlfbnjkbdjcaaklaofggkikdlpakn`，並以過渡期 dual allowlist 部署到 edge／backend。仍須在 Groq Console 對 production project 啟用 ZDR、輪替曾曝光的 key、確認不用 batch／fine-tuning／retention feature，並保存不含內容的設定截圖／日期作 release evidence。 |
 | P0 | Gemini Free 與 CWS Limited Use 風險 | 公開推薦 endpoint 不得使用 Gemini unpaid quota。Gemini 保留為 self-hosted optional adapter；若未來要公開採用，只能在重新做 provider terms／privacy review、更新 UI／listing／policy 後切換。Google 官方條款明載 unpaid inputs／outputs 可用於改善產品且可能由 human reviewers 處理。 |
-| P0 | Dashboard privacy disclosures 尚未人工確認 | `https://github.com/yazelin/taigi-news-reader/blob/main/PRIVACY.md` 已在 push 後以未登入 HTTP client 確認回 200；仍須逐字核對 policy、套件內告知、listing 與實際 production provider/logging，並在 Dashboard 填 Website content、single purpose、permission justifications、remote code=No、Limited Use certifications。 |
-| P0 | Store listing graphics／metadata 上傳 | Repo 已有 128 icon、`extension/store-assets/screenshot-reader-1280x800.png` 真實 Chrome UI 截圖與 `extension/store-assets/promo-440x280.png`；仍須在 Dashboard 上傳這些素材，並填詳細描述、語言、分類與 support。缺 screenshot 或必填欄位會被拒絕。 |
-| P0 | Reviewer 可用性／production service | **2026-07-13 LAN root deployment 已完成：** `https://ching-tech.ddns.net/taigi-tts/health` 在允許網段直接回 200 JSON，且實際 Groq＋MMS job 已完成 WAV 與 DELETE cleanup；不再 301 到公司首頁。但 production 刻意只允許 `192.168.11.0/24`，外部 CWS reviewer 無法重現。送審前仍須提供安全、可供 reviewer 使用且不把共用 secret 包進 extension 的路徑，並寫入 notes。固定 extension header／Origin 都可偽造，不能單獨作為公網 authentication。 |
-| P0 | Publisher account 外部作業 | 以長期維護信箱註冊並付一次性費用、啟用 Google Account 2-Step Verification、確認聯絡資訊；選 Private trusted testers 或其他 distribution。這些無法由 repo 自動驗證。 |
+| P0 | `0.1.2` exact release 尚未驗證 | Source 已實作逐人 invite token、origin binding、`/v1/access`、job ownership、durable quota 與 capacity caps，但不能把 code presence 當成 release 完成。須跑 backend／extension 全套、package checks、secret scan，以及 fresh-profile exact ZIP 的正確 token、錯誤／撤銷 token、origin switch、401／429、one-shot terminal result、STOP／DELETE、replay zero-request E2E；記錄新的 ZIP bytes／SHA-256／commit。 |
+| P0 | Dashboard privacy／listing 必須同步 `0.1.2` | 既有 `0.1.1` listing 素材與草稿不能取代新資料流揭露。Dashboard 必須同時勾 **Website content** 與 **Authentication information**，更新 `storage` justification、詳細描述及 test instructions；raw invite token 只在 Chrome local storage、綁 configured origin、只送同 origin `/v1/`，server 只有 SHA-256 digest＋stable subject。Remote code 維持 No，Limited Use certifications 需再人工核對。 |
+| P0 | Reviewer 可用性／live production service | **2026-07-13 LAN root deployment 是歷史基線：** `https://ching-tech.ddns.net/taigi-tts/health` 只在允許網段完成 Groq＋MMS WAV／cleanup。現有 endpoint 仍刻意只允許 `192.168.11.0/24`，外部 CWS reviewer 無法重現；`0.1.2` auth／quota 也尚未 live 部署。須提供安全外網路徑、逐 reviewer 高熵可撤銷 token、per-IP nginx limits、single-worker durable quota volume、監控與 rollback，並從 operator LAN 外實測。 |
+| P0 | Private distribution／reviewer credential | Publisher 聯絡信箱已由操作者回報完成驗證，但仍須在 Dashboard 選 Private trusted testers、加入實際 tester account，並只透過 Dashboard 安全 reviewer credential 欄提供一組有期限／足額 quota 的個別 token。不得把共用 token 放進 extension、listing、repo、screenshot 或公開 issue。 |
 
 官方依據：Chrome 要求 manifest root ZIP、name／version／icons／description，且每次更新 version 必須增加；見 [Prepare your extension](https://developer.chrome.com/docs/webstore/prepare)。Listing 缺 description、icon 或 screenshots 會被拒；圖像尺寸見 [Supplying Images](https://developer.chrome.com/docs/webstore/images)。處理 website content，即使只存在本機，也要揭露並提供 privacy policy；見 [User Data FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq/) 與 [Privacy practices](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy)。
 
@@ -25,14 +25,16 @@ Groq 官方說明指出 inference inputs／outputs 預設不保留，但 reliabi
 
 ## 已通過的 repo 檢查
 
-- Manifest V3、`minimum_chrome_version=116`、name／version／description 格式有效；source manifest、package 與 lockfile root version 都是 `0.1.1`，高於先前草稿的 `0.1.0`。
-- Manifest 的 canonical RSA SPKI public key 推導出正式 CWS Item ID `nejhlfbnjkbdjcaaklaofggkikdlpakn`。`npm run release:check` 會重新解析 public key、驗證 RSA／canonical DER，並要求推導 ID 與 `package.json.cwsItemId` 完全相同；隔離 Chrome 實際載入 `dist/` 時也觀察到同一 service-worker origin 與 `0.1.1` registration。
+- `0.1.1` 歷史基線的 Manifest V3、`minimum_chrome_version=116`、name／version／description 格式有效；目前 source manifest、package 與 lockfile root 已改為 `0.1.2`，但本節不得視為已完成 `0.1.2` release check 或 package 驗證。
+- Manifest 的 canonical RSA SPKI public key 推導出正式 CWS Item ID `nejhlfbnjkbdjcaaklaofggkikdlpakn`。`npm run release:check` 會重新解析 public key、驗證 RSA／canonical DER，並要求推導 ID 與 `package.json.cwsItemId` 完全相同；隔離 Chrome 對 `0.1.1` 已觀察到同一 service-worker origin，`0.1.2` 仍須重跑。
 - Manifest 已改用不保證翻譯／發音品質的保守描述：「把你確認的繁體中文新聞文字送到已設定的台語語音服務，並在 Chrome 播放。」母語者／長輩品質驗收完成前不可改回「自然台語」或其他超出證據的宣稱；metadata 變更需 bump version 重包。
 - Required permissions 都有實際用途：`activeTab` + `scripting` 只在 action／使用者操作後擷取目前頁面；`sidePanel` 提供 UI；`offscreen` 只做 Blob／audio；`storage` 保存設定、session cleanup 與 opt-in replay。
 - 沒有 `tabs`、persistent `host_permissions`、`<all_urls>`、`unlimitedStorage`、cookies、history、webRequest 或 telemetry permission。
 - Backend host access 是 `optional_host_permissions`；設定頁只在使用者按下同意儲存後，runtime-request 該 URL 的 exact origin。Chrome 官方也建議可行時使用 optional permission；見 [Declare permissions](https://developer.chrome.com/docs/extensions/develop/concepts/declare-permissions)。
 - Extension 的共用 backend fetch wrapper 會在 `/health`、job POST、每次 GET poll 及 DELETE 強制覆寫 `X-Taigi-Extension-Id` 為 `chrome.runtime.id`；caller 不能換值。Backend／edge strict mode 對非-preflight `/v1/` 要求 ID 精確命中 allowlist，缺少／錯誤 header 或 header 與已存在 Origin 不一致都回 403。Chrome GET 可能不帶 Origin，因此正確 header 的無 Origin request 可接受；preflight 仍要求 exact extension Origin 並協商自訂 header。
 - 這個 header 與 Origin 都是公開識別、可由非瀏覽器偽造，不能描述成 API key、authentication 或防止所有濫用。目標 LAN 部署仍由 subnet allowlist、per-IP rate／connection limit、request size／active-job cap 與 HTTPS 構成邊界；`/health` 不要求 header，只受 LAN／health limits 保護。若 reviewer endpoint 會暴露公網，必須另行完成適合公網的 authentication／abuse review。
+- `0.1.2` 已實作的私人測試憑證是逐人 bearer invite token：extension raw token 存 `chrome.storage.local`、綁 configured origin，只送該 origin `/v1/`；server config 只有 SHA-256 digest＋stable pseudonymous subject。它是 CWS Authentication information，不是 provider key。Source implementation 不等於 exact ZIP 或 production deployment 已通過。
+- Candidate 的 SQLite quota 只保存當日 UTC date、subject、jobs、characters；不存新聞、音訊、raw token 或 digest。Per-subject／global daily jobs＋characters quota、owner-bound jobs、one-shot terminal delivery、outstanding／terminal-byte caps與 nginx per-IP limits形成多層防護。Job registry 仍是 process-local，所以 private beta 部署限定單 worker／replica。
 - Extension CSP 是 `script-src 'self'; object-src 'self'`。所有 HTML script 都是 package-local；source／dist scan 沒有 `eval`、`new Function`、remote script、dynamic remote import 或 WASM。Backend response 是 JSON／audio data，並非 remotely hosted code；符合 [Manifest V3 remote code policy](https://developer.chrome.com/docs/extensions/develop/migrate/remote-hosted-code)。
 - esbuild 沒有 source map、沒有 obfuscation／minification，package 不含 tests、`node_modules`、provider keys、model weights或 backend secrets。官方 review 文件指出 broad host／sensitive execution 與難讀 code 會延長審查；目前 compiled code 可讀，但 `https://*/*` 仍需 review notes 詳細解釋，見 [Review process](https://developer.chrome.com/docs/webstore/review-process)。
 - Store small promo 已有實際 440x280 PNG；另已用 production `dist/` 的 isolated Chromium profile 拍攝真實 1280x800 新聞頁＋side panel 內容確認畫面 `extension/store-assets/screenshot-reader-1280x800.png`，不是 SVG 設計稿或僅截 extension page。
@@ -52,14 +54,21 @@ Groq 官方說明指出 inference inputs／outputs 預設不保留，但 reliabi
 ## Package 與發佈程序
 
 1. 已以 developer account 建立草稿並取得 public key；由它推導的正式 Item ID 是 `nejhlfbnjkbdjcaaklaofggkikdlpakn`。Dashboard 顯示的 Item ID 必須人工比對完全相同。
-2. 已把 public key 放入 source manifest 的 `key`、把版本提升到 `0.1.1`，並將正式 ID 加入 edge／backend 過渡期 dual allowlist。Public key 可公開，但 CWS signing private key／OAuth token 不得放進 repo。
-3. 把 `taigi-news-reader-0.1.1.zip` 更新到同一個 Dashboard 草稿，**不要按 Submit for Review**；完成上表其餘 P0，更新 privacy／listing copy。
-4. 確認 `src/manifest.json` 與 `package.json` version 相同，而且高於 Dashboard 已上傳的版本；執行 `cd extension && npm ci && npm run check && npm run package:store`。
-5. 記錄 tests、ZIP 路徑、size、SHA-256、git commit、Groq ZDR attestation、endpoint health identity 與 isolated-profile E2E。
-6. 解壓 ZIP 到空目錄，從解壓後內容 load unpacked；重跑 [manual-test.md](manual-test.md) 與 [listing reviewer steps](chrome-web-store-listing.md#reviewer-test-instructions)。Chrome 官方也要求測試實際提交的 exact package；見 [Troubleshooting](https://developer.chrome.com/docs/webstore/troubleshooting/)。
-7. 在 Dashboard 完成 Store listing、Privacy practices、Distribution 與 Test instructions。建議 first release 用 Private trusted testers；所有 visibility 都走相同 policy review，見 [Distribution](https://developer.chrome.com/docs/webstore/cws-dashboard-distribution/)。
-8. 上傳最終 ZIP，人工按 Submit for Review 並選 deferred publishing。官方要求 developer account 2-Step Verification，見 [Chrome Web Store API prerequisites](https://developer.chrome.com/docs/webstore/using-api)。
-9. Review 通過後再人工決定 publish；deferred submission 通過後有 30 天可發佈，見 [Publish](https://developer.chrome.com/docs/webstore/publish/)。
+2. 已把 public key 放入 source manifest 的 `key`，正式 ID 也已加入 edge／backend 過渡期 allowlist。`0.1.1` ZIP 已是 Dashboard 歷史草稿；`0.1.2` source 已實作 private-test controls，但尚未形成經驗證的 release artifact。Public key 可公開，但 CWS signing private key／OAuth token 不得放進 repo。
+3. 為每位 tester／reviewer離線產生不同高熵 token，只把 SHA-256 設成 `stable-subject=digest`。Raw token 不得放進 git、extension ZIP、provider env example、listing、screenshot或 release evidence；經私密管道分發，並保留個別撤銷對照。
+4. 完成上表 P0：Groq ZDR 與 provider key rotation、外部 HTTPS reachability、single-worker backend＋durable quota volume、nginx per-IP limits、production logging／monitoring、rollback。從 operator LAN 外驗證；不要因 source 有 auth／quota 就宣稱 live。
+5. 確認 `src/manifest.json` 與 `package.json` version 都是 `0.1.2` 且高於 Dashboard 的 `0.1.1`；執行 backend tests、`cd extension && npm ci && npm run check && npm run package:store`。
+6. 記錄 tests、ZIP 路徑、size、SHA-256、git commit、Groq ZDR attestation、endpoint health identity 與 isolated-profile E2E。解壓 exact ZIP 到空目錄 load unpacked，重跑 [manual-test.md](manual-test.md) 與 [listing reviewer steps](chrome-web-store-listing.md#reviewer-test-instructions)。
+7. 在 Dashboard 更新 Store listing 與 Privacy practices，尤其新增 Authentication information；Distribution 選 Private trusted testers並加入實際測試帳號。Test instructions 使用一組可撤銷 reviewer token，僅放 Dashboard 安全 credential 欄。所有 visibility 都走相同 policy review，見 [Distribution](https://developer.chrome.com/docs/webstore/cws-dashboard-distribution/)。
+8. 上傳最終 `0.1.2` ZIP，重新確認 Dashboard package version／hash evidence 後才人工按 Submit for Review，並選 deferred publishing。Review 通過後再人工決定 publish。
+
+### Private → Public 升版
+
+1. 沿用同一 CWS item／正式 extension ID；不要另建公開 item。相同 ID 讓私人測試安裝可收到正常更新，Chrome local settings／replay 也維持同一 origin。
+2. 把版本再提升為高於已發布 private build 的版本（例如 `0.1.3`），重新 build、測試、打包、上傳並送審。不能只在 Dashboard 把 visibility 切 Public 而沿用未重新稽核的 credential／privacy 流程。
+3. 公開前決定可擴充的個別 onboarding／authentication、撤銷、遺失復原與支援流程。CWS trusted-testers 名單不是 API authorization；extension 裡的任何 static／shared token 都是公開資料。若保留 invite token，仍須逐人發放、可撤銷、有配額。
+4. 重新核對容量／成本、provider terms、Groq ZDR／key rotation、資料保存、abuse／incident response、backup／restore、監控與多使用者負載。若 authentication 模式改變，新版 UI 必須安全清除／migration 舊 token。
+5. 更新 listing、Privacy practices、policy 與 reviewer notes，重跑 exact public ZIP E2E；審查通過後才把 distribution 發布為 Public。是否採 deferred publishing 仍由操作者在 Dashboard 人工決定。
 
 ## Release evidence 範本
 
@@ -75,7 +84,13 @@ Exact ZIP unpacked Chrome smoke:
 Recommended /health identity:
 Production extension ID pinned at edge/backend:
 Header / missing-Origin / mismatched-Origin matrix:
-LAN allowlist + rate/connection limits verified:
+Invite-token digest subjects provisioned (no raw values):
+Authentication information Dashboard disclosure reviewed:
+Correct / wrong / revoked / cross-origin token matrix:
+Per-subject/global UTC quota + restart persistence verified:
+Job ownership + one-shot terminal result/caps verified:
+nginx per-IP rate/connection limits verified:
+Single backend worker + durable quota volume verified:
 Reviewer endpoint reachability verified from outside operator LAN:
 Groq production project + ZDR verified at (UTC):
 Groq key rotated at (UTC; never paste key):
@@ -88,4 +103,4 @@ Distribution / regions:
 Deferred publish selected:
 ```
 
-不要在 evidence 中貼新聞全文、API key、CWS token、cookie、完整 server log 或使用者資料。
+不要在 evidence 中貼新聞全文、raw invite token、token digest、API key、CWS token、cookie、完整 server log、個人信箱或其他使用者資料。

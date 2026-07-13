@@ -27,7 +27,9 @@
 3. 選擇速度，按「確認並開始朗讀」。
 4. 使用暫停、繼續、停止與重新播放。
 
-新聞文字只有在你確認後才送到設定頁顯示的語音服務。套件不送出 Cookie、登入資訊、完整 HTML、新聞網址或瀏覽紀錄。推薦的非商用服務使用 Groq inference 做翻譯，再由伺服器上的真正台語 TTS 產生音訊；mock 音訊會明確標示「測試音訊（不是台語 TTS）」。也可以改用你信任的 HTTPS 自架服務。
+新聞文字只有在你確認後才送到設定頁顯示的語音服務。套件不送出 Cookie、網站登入資訊、完整 HTML、新聞網址或瀏覽紀錄。推薦的非商用服務使用 Groq inference 做翻譯，再由伺服器上的真正台語 TTS 產生音訊；mock 音訊會明確標示「測試音訊（不是台語 TTS）」。也可以改用你信任的 HTTPS 自架服務。
+
+私人測試期間需要管理者逐人提供的邀請碼。它只用來驗證推薦語音服務，不是 Groq／Gemini API key；明碼保存在這個 Chrome profile、綁定服務網域，且只送到該網域的 `/v1/`。每位測試者與整體服務都有每日工作數及字元數配額。
 
 本機重播預設關閉。主動開啟後，最多保留最近 5 篇、合計 50 MiB、最後播放後 7 天的音訊；可逐筆刪除、清除全部，或關閉功能立即清除。詳細資料處理方式請看隱私政策。
 
@@ -66,7 +68,7 @@
 - `scripting`：把 package 內的 `extractor.js` 注入使用者剛主動開啟的 active tab，以擷取選取文字或文章正文；搭配 `activeTab`，不使用永久新聞網站 host access。
 - `sidePanel`：在 Chrome side panel 顯示內容預覽、明確送出確認、播放控制及本機重播管理。
 - `offscreen`：Manifest V3 service worker 沒有 DOM audio 能力，因此以 package 內 offscreen document 建立 Blob URL 並播放使用者要求的音訊。
-- `storage`：在本機保存 backend URL、session 播放／cleanup 狀態，以及使用者明確 opt-in 的 bounded replay preferences、metadata、provider fingerprint；不使用 `unlimitedStorage`。
+- `storage`：在本機保存 backend URL、與該 origin 綁定的私人測試邀請碼、session 播放／cleanup 狀態，以及使用者明確 opt-in 的 bounded replay preferences、metadata、provider fingerprint；邀請碼不進 replay／player／job records，不使用 `unlimitedStorage`。
 - Optional `https://*/*`：使用者可以指定可信任的 HTTPS 語音服務。Manifest 只宣告可選能力；設定頁按下同意儲存時才用 `chrome.permissions.request()` 要求該 URL 的 exact origin，不在安裝時取得所有 HTTPS 網站權限。
 - Optional `http://127.0.0.1/*`、`http://localhost/*`：只支援同機自架開發服務；一般遠端 HTTP 會被拒絕。
 
@@ -81,9 +83,10 @@
 ### Data usage
 
 - 勾選：Website content。它包含使用者主動擷取或選取的標題／正文，及由其產生的台語音訊。
+- 勾選：Authentication information。私人測試邀請碼是推薦服務的 bearer access credential；raw value 只存在 `chrome.storage.local`、綁定 configured origin，並只送到同一 origin 的 `/v1/`。它不是 provider API key。Server 只設定 token SHA-256 digest 與穩定假名 subject，用於驗證、job ownership 與 quota。
 - 不勾選 Web history：套件不收集或傳送新聞 URL、跨頁瀏覽紀錄或被動背景活動。
-- 不勾選 authentication、personal communications、financial、health、location 等類型；但使用者可能自行選取含敏感資料的頁面，因此 UI 與 policy 應提醒不要把私人／機密內容送到不信任的服務。
-- Local-only data 也必須揭露：backend setting、播放 session、opt-in replay title/service metadata、provider identity 與 audio。
+- 不勾選 personal communications、financial、health、location 等其他類型；但使用者可能自行選取含敏感資料的頁面，因此 UI 與 policy 應提醒不要把私人／機密內容送到不信任的服務。
+- Local-only data 也必須揭露：backend setting、raw invite token 與 bound origin、播放 session、opt-in replay title/service metadata、provider identity 與 audio。Token 不出現在 history、audio、logs 或 screenshot。
 - 每次 backend request 另帶固定的 `X-Taigi-Extension-Id`，只辨識商店套件而非單一安裝／使用者；它不是 secret。Browser Origin 若存在也可能由 edge 檢查，但兩者都可被非瀏覽器偽造，不應宣稱為使用者 authentication。
 - 第三方：公開推薦 endpoint 的營運方及 Groq inference。公開版必須使用已啟用 ZDR 的 Groq project；Gemini Free 不得作為推薦公開後端。自訂 backend 的營運方由使用者選擇。
 - Certification：資料只用於或改善上述 single purpose；不出售、不用於廣告、信用評估或 unrelated profiling；除必要服務供應商、法律要求、安全／abuse 調查外不轉移；遵守 Limited Use。
@@ -92,12 +95,12 @@ Chrome 要求 Dashboard disclosures、privacy policy 與實際行為一致；見
 
 ## Reviewer test instructions
 
-1. 使用待送審 ZIP 安裝，Chrome 116+。
-2. 開啟設定，按「使用建議的非商用服務」，確認資料傳輸告知後接受 exact-origin optional permission。
-3. 確認 `https://ching-tech.ddns.net/taigi-tts/health` 直接或經正確保留路徑的 redirect 回傳 JSON，且內容是 production 預期的 `mode=concrete`、Groq translator identity 與真正台語 synthesizer identity；不得回網站 HTML，也不得是 mock。
+1. 使用待送審的 exact `0.1.2` ZIP 安裝，Chrome 116+。Reviewer 不需網站帳號；需要一組只供審查、可撤銷且具有足夠 quota 的個別邀請碼。只透過 Dashboard 的 reviewer credential／test instructions 安全欄位提供，絕不寫入 repo、listing 或 screenshot。
+2. 開啟設定，按「使用建議的非商用服務」，輸入 reviewer 邀請碼，確認資料傳輸告知後接受 exact-origin optional permission，再按「同意並儲存、測試」。預期 `/v1/access` 驗證成功；錯誤邀請碼顯示已撤銷／無效且不保存新設定。
+3. 確認 `https://ching-tech.ddns.net/taigi-tts/health` 直接回 JSON，內容是 production 預期的 `mode=concrete`、Groq translator identity 與真正台語 synthesizer identity；不得回網站 HTML，也不得是 mock。Health request 不帶 Authorization。
 4. 開啟一篇公開繁中新聞，按 extension action，再按「讀取這一頁」。檢查預覽後按「確認並開始朗讀」。
-5. 預期 UI 依序顯示 preparing／playing／completed，可暫停、繼續、停止；失敗時會顯示可理解錯誤，不會改用華語 voice。
-6. 開啟本機重播，完成一篇後再次 START；預期 cache hit，不送 `/health` 或 synthesis。從 history 重播也不送 synthesis。清除全部後 history 與 IndexedDB 為空。
-7. Review notes 補充：新聞頁只透過 `activeTab` 在使用者操作後讀取；任意 HTTPS pattern 是為 user-selected backend，實際只 runtime-request exact origin；所有 remote responses 都是 data，不是 executable code。套件對 `/health`、POST／GET／DELETE 都帶固定的公開 extension ID header；`/v1/` 缺少／錯誤 ID 或 header 與已存在 Origin 不一致時會拒絕，但 Chrome GET 可能不帶 Origin。Header／Origin 不是 secret 或公網 authentication，營運方另使用網路與 rate-limit controls。
+5. 預期 UI 依序顯示 preparing／playing／completed，可暫停、繼續、停止；失敗時會顯示可理解錯誤，不會改用華語 voice。每個 `/v1/` POST／GET／DELETE 帶同一 reviewer bearer token，且 token 只送到 configured origin。
+6. 開啟本機重播，完成一篇後再次 START；預期 cache hit，不送 `/health` 或 synthesis。從 history 重播也不送 synthesis。清除全部後 history 與 IndexedDB 為空，且 history／player state／job record 不含 invite token。
+7. Review notes 補充：新聞頁只透過 `activeTab` 在使用者操作後讀取；任意 HTTPS pattern 是為 user-selected backend，實際只 runtime-request exact origin；所有 remote responses 都是 data，不是 executable code。套件對 `/health`、POST／GET／DELETE 都帶固定的公開 extension ID header；`/v1/` 另要求逐人 bearer token並綁定 job owner。Header／Origin 不是 secret；server token config 只有 SHA-256 digest＋stable subject。服務另有 per-subject／global UTC daily jobs＋characters quotas、job/result caps 及 edge per-IP limits。
 
-送審前先用 isolated Chrome profile 重跑以上流程，並保留 `/health`、POST／GET／DELETE、cache hit 與清除證據。Reviewer backend 必須在整個 review 期間穩定可用、具 rate limit，edge／backend allowlist 與 CORS 必須包含 Dashboard 分配的正式 extension ID。若服務只允許 operator LAN，必須先解決 CWS reviewer 從外部無法重現的問題；不能只把可偽造的 extension header 當成公網保護。
+送審前先用 isolated Chrome profile 重跑以上流程，並保留 `/health` 無 Authorization、`/v1/access`、authenticated POST／GET／DELETE、cross-subject 404、one-shot terminal result、quota 429、cache hit 與清除證據。Reviewer backend 必須在整個 review 期間穩定可用，edge／backend allowlist 與 CORS 必須包含 Dashboard 分配的正式 extension ID，並套每 IP limits。若服務只允許 operator LAN，仍須先解決 CWS reviewer 從外部無法重現的問題；程式碼已有 authentication／quota 不代表 external endpoint 已部署或驗證。

@@ -9,9 +9,10 @@
 ```text
 新聞頁面
   ↓ 使用者主動選取／按下朗讀
-Chrome 擴充套件（只傳純文字）
-  ↓ POST job → 短輪詢 GET → 完成／停止後 DELETE
+Chrome 擴充套件（只傳純文字；私人測試邀請碼只送同 origin 的 /v1）
+  ↓ Authorization + POST job → 短輪詢 GET → 完成／停止後 DELETE
 後端服務
+  ├─ 每位測試者的 invite-token 驗證、UTC 日配額與 job ownership
   ├─ Translator provider：繁中新聞 → 台語文字候選（仍需母語者驗收）
   └─ 真正的台語 TTS provider：台語文字 → 音訊
   ↑
@@ -31,15 +32,18 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 ## 一般使用方式：營運方託管後端
 
-擴充套件目前內建的建議 URL 是 `https://ching-tech.ddns.net/taigi-tts`，但目前只完成下述 LAN pilot；在完成可供預定使用者與 reviewer 存取的部署、安全與 release gates 前，**不是可直接給一般公網使用者使用的公共服務**。開發包預設仍不會自動選用它；使用者必須在設定頁主動按下建議服務或自行輸入可信任 URL。若要正式發佈，營運方仍必須：
+擴充套件目前內建的建議 URL 是 `https://ching-tech.ddns.net/taigi-tts`。`0.1.2` source 已實作每位測試者各自的邀請碼、配額與工作隔離。邀請碼不是 Groq／Gemini provider key：明碼只存在該 Chrome profile 的 `chrome.storage.local`，綁定設定的 backend origin，並只以 `Authorization: Bearer …` 送到同 origin 的 `/v1/`。Server 只設定 SHA-256 digest 與穩定假名 subject；任何把共用 provider key 或共用邀請碼包進 extension ZIP 的作法都會讓安裝者取得它，禁止採用。
+
+目前只完成下述 LAN pilot；新的 authentication／quota 程式仍須完成 exact package tests、外部 reviewer reachability 與 live deployment，才能視為可供私人測試者使用。開發包預設不會自動選用推薦服務；使用者必須在設定頁主動選擇服務、輸入管理者個別提供的邀請碼並通過 `/v1/access` 驗證。若要送出 private trusted-testers 版本，營運方仍必須：
 
 2026-07-13 已把 concrete Groq＋MMS backend 部署到 `192.168.11.11`，由上述 HTTPS URL 反向代理，且只允許可信 `192.168.11.0/24` LAN。Dashboard public key 已固定 `0.1.1` 的正式 CWS ID `nejhlfbnjkbdjcaaklaofggkikdlpakn`；exact `0.1.1` ZIP 也已用全新 Chrome profile 通過原生 optional permission、真實 Groq＋MMS 播放完成、history 與零 API 快取重播。Edge／backend 在現有安裝遷移期同時接受正式 ID 與舊 unpacked ID。這只維持兩種安裝的後端連線；Chrome 會把兩個 ID 視為不同 extension origin，因此舊版設定與本機重播不會自動移到正式版，使用者須重新選定服務並重新開啟重播。它另已通過 health、strict extension ID／Origin、短句與 80 字新聞的真實 WAV／cleanup smoke。Backend 沒有 publish host port。這是家用 LAN pilot，不是可供外部 Chrome Web Store reviewer 或一般公網使用者使用的服務；詳見 [部署 runbook](deploy/lan/README.md) 與 [驗證紀錄](docs/validation.md)。
 
-1. 提供可供預定使用者與 reviewer 安全存取的 HTTPS 後端路徑，設定真正支援台語且授權符合非商用用途的 translator / TTS providers；目前 LAN pilot 在 server 使用 MMS reference。
-2. 維持正式發佈的 extension ID pinning，對 `/v1/` 檢查 `X-Taigi-Extension-Id` 與存在時的 Origin，並設定網路 allowlist、請求上限、速率限制與隱私／保存政策；確認既有安裝都遷移後再移除舊 unpacked ID。
-3. 透過 Chrome Web Store 或組織管理方式發佈擴充套件，並提供使用者可辨識的正式服務 URL。
+1. 提供可供預定測試者與 CWS reviewer 安全存取的 HTTPS 後端路徑，設定真正支援台語且授權符合非商用用途的 translator / TTS providers；目前 LAN pilot 在 server 使用 MMS reference。
+2. 為每位測試者產生高熵、可撤銷的不同邀請碼；server 只保存 `subject=SHA-256 digest`，並啟用每 subject／全域 UTC 日工作數與字元數配額。SQLite 只保存日期、subject、工作數、字元數，不保存新聞、音訊或 token。
+3. 維持正式 extension ID pinning，對 `/v1/` 同時檢查 bearer credential、`X-Taigi-Extension-Id` 與存在時的 Origin；edge 另套每 IP request／connection limit，backend 套 active／outstanding job 與 terminal-result bytes caps。私人 beta 固定單一 worker，因 job registry 仍是 process-local memory。
+4. 完成 Groq ZDR、輪替所有曾曝光的 provider keys、external reachability、production logging／monitoring 與 live abuse smoke，再把 `0.1.2` exact ZIP 送 Private trusted testers 審查。
 
-一般使用者安裝後，在設定頁填入營運方提供的 HTTPS URL；之後開啟新聞、選取文字或讓套件擷取正文，再按朗讀即可。若未設定後端或後端無法連線，套件必須明確提示設定／服務問題，不得默默改接不明遠端服務或華語 voice。
+私人測試者安裝後，在設定頁填入營運方提供的 HTTPS URL 與自己的邀請碼；之後開啟新聞、選取文字或讓套件擷取正文，再按朗讀即可。若未設定、邀請碼被撤銷、配額已滿或後端無法連線，套件必須明確提示對應問題，不得默默改接不明遠端服務或華語 voice。
 
 ### 營運方部署骨架
 
@@ -59,9 +63,20 @@ TAIGI_REMOTE_TTS_API_KEY=replace-me
 TAIGI_EXTENSION_IDS=abcdefghijklmnopabcdefghijklmnop
 TAIGI_ALLOW_LOCALHOST_ORIGINS=false
 TAIGI_REQUIRE_ALLOWED_ORIGIN=true
+
+# 私人測試：每位使用者各一個高熵 token，server 只存 SHA-256。
+TAIGI_REQUIRE_ACCESS_TOKEN=true
+TAIGI_ACCESS_TOKEN_HASHES=tester-001=replace-with-lowercase-sha256
+TAIGI_QUOTA_DATABASE_PATH=/var/lib/taigi/quota.sqlite3
+TAIGI_DAILY_SUBJECT_JOB_LIMIT=20
+TAIGI_DAILY_SUBJECT_CHARACTER_LIMIT=50000
+TAIGI_DAILY_GLOBAL_JOB_LIMIT=100
+TAIGI_DAILY_GLOBAL_CHARACTER_LIMIT=250000
 ```
 
-擴充套件對 `/health`、job POST、每次 GET poll 與 DELETE 都會帶 `X-Taigi-Extension-Id: chrome.runtime.id`。Chrome 的部分簡單 GET 可能不帶 Origin，因此 strict backend 以固定 header 為 `/v1/` 必要條件，Origin 存在時再核對同一 ID；CORS preflight 仍以 exact extension Origin 協商。Extension ID header 與 Origin 都是公開且可被非瀏覽器偽造的識別，不是 API key 或 authentication。LAN deployment 仍須依賴 subnet allowlist、HTTPS、每 IP rate／connection limit、request size 與 active-job cap；公網服務另需真正 authentication／abuse controls。
+擴充套件對 `/health`、job POST、每次 GET poll 與 DELETE 都會帶 `X-Taigi-Extension-Id: chrome.runtime.id`。Chrome 的部分簡單 GET 可能不帶 Origin，因此 strict backend 以固定 header 為 `/v1/` client gate，Origin 存在時再核對同一 ID；CORS preflight 仍以 exact extension Origin 協商。Extension ID header 與 Origin 都是公開且可被非瀏覽器偽造的識別，不是 API key 或 authentication。Private beta 的 `/v1/` 另要求逐人 bearer invite token，並把工作綁到該 token 的 subject；`/health` 明確不帶 bearer token。Edge 保留每 IP rate／connection limit、request size 與 HTTPS，不能只依賴 bearer token。
+
+每日配額以 SQLite transaction 原子保留：每個 subject 與全域分別限制已接受工作數及 `text` 字元數，UTC 午夜重置。接受後即計費，後續 provider failure 或取消不退回；SQLite 只有 `utc_date/subject/jobs/characters`，不含新聞、翻譯、音訊、raw token 或 token digest。Job result 仍只在單一 process memory，跨 subject 不能讀取／刪除，terminal GET 只交付一次；全域與每 subject 的 outstanding jobs／retained bytes caps 及 TTL 限制暫存量。這個 beta 架構不得水平擴充 worker，除非 job registry 改為共享 queue／store。
 
 remote TTS endpoint 接收 `{"text":"...","language":"nan-TW","rate":1.0}`，回傳 `{"audio_base64":"...","mime_type":"audio/wav"}`。若供應商 API 不同，應在後端新增 adapter 或部署轉接服務，不能把金鑰或轉接邏輯塞進擴充套件。
 
@@ -91,7 +106,15 @@ docker run --rm --env-file backend/.env.production \
   -p 127.0.0.1:8765:8765 taigi-news-reader-backend
 ```
 
-再由同機 HTTPS reverse proxy 或受管理平台提供服務。若要開放給外部 reviewer 或一般公網使用者，還需補真正的身分／濫用防護、監控與明確隱私政策，並保留 rate limit；不要直接把開發用 Uvicorn port 暴露到公網。
+再由同機 HTTPS reverse proxy 或受管理平台提供服務。外部 reviewer endpoint 必須先完成逐人 authentication、每日與 process caps、每 IP edge limits、監控與明確隱私政策；不要直接把開發用 Uvicorn port 暴露到公網。這些控制已在 `0.1.2` source 實作，不代表 production 已部署或外網 smoke 已通過。
+
+### 從私人測試升級為公開版
+
+Private trusted testers 與 Public 可以使用同一個 Chrome Web Store item；不需建立另一個 extension ID。私人版先完成 P0 gates、把版本提升到高於 Dashboard 現有版本的 `0.1.2`、重包並以 Private distribution 送審。通過後只把各自的高熵邀請碼私下交給列入 trusted testers 的人，不把 token 放進 ZIP、商店文案或公開 issue。
+
+公開升版時維持同一 item ID，再將 manifest／package 版本提升（例如 `0.1.3`），上傳新 ZIP、更新 privacy／listing／review notes 並重新送審，之後才把 distribution 改成 Public。相同 item ID 讓已安裝的私人版可正常自動更新；本機設定與重播資料也保留，但若公開版更換 authentication 模式，必須提供明確 migration／sign-out 並安全清除舊 invite token。
+
+公開版不能把 CWS trusted-testers 名單誤當成 API authorization，也不能把一組共用 token 烘焙進 extension。上線前要決定可擴充的個別帳號／憑證發放、撤銷與遺失復原流程，重新做容量與成本模型、隱私告知、provider terms、濫用申訴／支援、備份／復原及多使用者負載測試。若仍採 invite token，也必須維持逐人、可撤銷與有限配額，而不是公開共用 secret。
 
 ## 開發快速開始：mock mode
 
@@ -123,7 +146,7 @@ curl http://127.0.0.1:8765/health
 2. 啟用右上角「開發人員模式」。
 3. 執行 `cd extension && npm ci && npm run build`。
 4. 按「載入未封裝項目」，選擇本 repo 的 `extension/dist/`。
-5. 開啟套件的選項頁，在「台語語音服務網址」填入 `http://127.0.0.1:8765` 並測試連線／儲存。預設值刻意留空，不會偷偷連到任何服務。
+5. 開啟套件的選項頁，在「台語語音服務網址」填入 `http://127.0.0.1:8765`。本機 mock 若未啟用 strict access-token 驗證，可在邀請碼欄輸入只供本機測試的非空 placeholder；它仍只送到 `127.0.0.1` 的 `/v1/`。正式／私人測試環境必須使用管理者逐人提供的高熵邀請碼。按下儲存與測試；預設服務網址刻意留空，不會偷偷連到任何服務。
 6. 開一篇新聞，選取一段文字，再由工具列開啟擴充套件並按朗讀。
 
 修改擴充套件後，重新執行 `npm run build`，再到 `chrome://extensions` 按該套件的重新載入按鈕；修改後端後需重啟 `uvicorn`。
@@ -179,7 +202,9 @@ Cache schema v2 的 `id` 是以 normalized 文字 chunks、語速、目前 backe
 - **正式託管**：文字離開使用者裝置，送到設定頁顯示的營運方 HTTPS 後端；若後端再呼叫 provider，營運方必須揭露目的地、保存期、是否用於訓練及刪除方式。
 - **開發／本機自架**：文字送到 `127.0.0.1`，Ollama 與 MMS 在本機處理，音訊回到 Chrome 播放。
 
-預設關閉本機重播時，擴充套件不持久保存新聞文字或生成音訊；只有上述 explicit opt-in 才會在 Chrome profile 保存 bounded title metadata 與 audio。這份 browser-local cache 和後端 job 是兩個不同生命週期：非同步 job 全部只存在單一 backend process 的記憶體，原文只活在 active synthesis task 的參數中，從不放入 job registry 或磁碟；合成完成或失敗滿 600 秒後，下一次 job API 操作會清除過期 terminal result，而 Chrome 正常取得結果後會立即 `DELETE`。process 關閉時也會取消 active jobs 並清空記憶體。
+預設關閉本機重播時，擴充套件不持久保存新聞文字或生成音訊；只有上述 explicit opt-in 才會在 Chrome profile 保存 bounded title metadata 與 audio。私人測試邀請碼是另一類本機設定：raw token 只存在 `taigiSettings`、綁定 backend origin，且只以 Authorization 送到該 origin 的 `/v1/`；它屬於 Authentication information，不進入 replay／player／active-job records，也不是 provider key。
+
+Browser-local cache、server quota 與後端 job 是三個不同生命週期。Quota SQLite 只持久保存目前 UTC 日的假名 subject、工作數與字元數，不保存新聞、音訊或 token。非同步 job 全部只存在單一 backend process 的記憶體，依 subject 隔離；原文只活在 active synthesis task 的參數中，從不放入 job registry 或磁碟。Terminal result 只能取得一次，之後只留 DELETE tombstone；未被取走／刪除的 terminal record 最多保留 600 秒。Process 關閉時也會取消 active jobs 並清空記憶體。
 
 本機重播 metadata 只開放給 extension trusted contexts；一般新聞頁與 content script 不應讀到它。它仍是使用者 Chrome profile 中的本機資料，標題與音訊可能透露閱讀內容，不應視為加密保管。使用者可逐筆刪除、清除全部或關閉功能立即刪除；瀏覽器／作業系統層級的 profile 存取風險仍由裝置安全負責。
 

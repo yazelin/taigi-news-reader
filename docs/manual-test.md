@@ -5,8 +5,8 @@
 ## 準備
 
 1. 在 `extension/` 執行 `npm ci && npm run build`，使用最新穩定版 Chrome，以「載入未封裝項目」載入 `extension/dist/`。
-2. 在設定頁明確填入測試 backend URL。開發時可用 `http://127.0.0.1:8765`；正式情境必須用營運方 HTTPS URL。
-3. 先以 `TAIGI_PROVIDER_MODE=mock` 啟動開發後端，確認 `http://127.0.0.1:8765/health` 正常。
+2. 在設定頁明確填入測試 backend URL 與該環境專用的邀請碼。開發時可用 `http://127.0.0.1:8765`；正式情境必須用營運方 HTTPS URL。若 local backend 未啟用 strict token auth，可輸入只供本機的非空 placeholder；不可拿 production／reviewer token做 local test。
+3. 先以 `TAIGI_PROVIDER_MODE=mock` 啟動開發後端，確認 `http://127.0.0.1:8765/health` 正常。測 strict auth／quota 時另用測試專用的高熵 tokens 與暫存 SQLite，不讀取或輸出 production secrets。
 4. 準備三種頁面：一般新聞、動態載入新聞、非新聞頁。
 5. 準備短句、含數字／姓名／地名的段落，以及接近最大允許長度的文字。
 
@@ -24,9 +24,11 @@
 
 - [ ] request 只到 `127.0.0.1:8765`。
 - [ ] `/health`、synthesis POST、每次 GET poll 及完成／STOP 後 DELETE 都帶 `X-Taigi-Extension-Id`，值等於 `chrome.runtime.id`；它是固定公開識別，不是使用者 token，也沒有被 caller-supplied header 覆寫。
-- [ ] payload 沒有 cookie、token、完整 HTML 或瀏覽紀錄。
+- [ ] `/health` 不帶 `Authorization`。每個 `/v1/` request 都由共用 wrapper 強制帶 `Authorization: Bearer <configured invite>`；caller 不能覆寫，fetch 使用 `credentials: omit`、`redirect: error`。
+- [ ] Request body 沒有 cookie、invite token、完整 HTML 或瀏覽紀錄；raw token 只在 Authorization header，不進 JSON、URL、console 或 error message。
 - [ ] 本機重播預設關閉；未 opt-in 時完整朗讀後，`taigiReplayHistory` 與 IndexedDB `audioEntries` 沒有新增資料。
 - [ ] Replay metadata／audio 沒有新聞原文、來源 URL、raw backend URL 或 provider secret；語音服務 URL 只存在既有 `taigiSettings.backendUrl`，不被複製進 history。
+- [ ] `taigiSettings` 只有 `backendUrl/accessToken/accessTokenOrigin`；raw invite token 綁定 URL origin，只供 trusted extension contexts 讀取，不出現在 player state、active-job store、replay history、IndexedDB 或新聞頁。
 
 ## B. 失敗與安全
 
@@ -42,14 +44,34 @@
 正式託管測試另確認：
 
 - [ ] backend URL 是 HTTPS，設定頁可清楚看見目前目的地。
+- [ ] 正確 invite token 可通過 `/v1/access`；missing、malformed、wrong 與 revoked token 都回相同 generic 401＋`WWW-Authenticate`／`Cache-Control: no-store`，不洩漏 subject、digest 或哪一部分不符。
+- [ ] 設定頁 password 欄不顯示明碼；只有 `/v1/access` 成功後才保存新設定。拒絕／逾時不破壞先前設定，新增但未使用成功的 exact-origin permission 會盡力撤回。
+- [ ] 修改 backend origin 會立即清空邀請碼欄；舊 token 不送新 origin。直接竄改 storage 讓 `accessTokenOrigin` 不符時，任何 request 都 fail closed，並要求重新設定。
+- [ ] 清除設定會移除 `taigiSettings` 與舊 origin permission；切換成功也會移除舊 origin permission。Network 確認 token 從未送到 redirect、`/health` 或其他網域。
 - [ ] 每個非-preflight `/v1/` request 缺少或帶錯 `X-Taigi-Extension-Id` 都回 403；正確 header 的 GET poll 即使沒有 `Origin` 仍可通過，以涵蓋 Chrome 可能省略 Origin 的行為。
 - [ ] 正確 header 搭配另一個 extension ID 的 Origin，或任意網站 Origin，仍回 403；allowed preflight 的 exact extension Origin 可協商 `content-type,x-taigi-extension-id`。
 - [ ] `/health` 不以 extension header 當授權條件，但仍受 LAN allowlist、health rate limit／connection limit 保護，且 response 不含新聞內容或 secret。
 - [ ] 從不在允許網段的 client 測試會被 edge 拒絕；在允許 LAN 中逐步觸發每 IP rate／connection limit，確認 429／拒絕不洩漏內部秘密。只有偽造正確 header／Origin 不能繞過網段邊界。
-- [ ] 明確記錄 extension header 與 Origin 都可被非瀏覽器 client 偽造，不把它們列為 authentication；若服務要開放公網，另驗真正 authentication／abuse controls。
+- [ ] 明確記錄 extension header 與 Origin 都可被非瀏覽器 client 偽造，不把它們列為 authentication；真正 authentication 是逐人 invite bearer token，但仍須搭配 quota 與 edge controls。
 - [ ] 過大 request、provider timeout 都回傳可理解且不洩漏內部秘密的錯誤。
 
-## C. 本機重播與隱私
+## C. 驗證、配額與工作隔離
+
+只使用測試 tokens／subjects；不要顯示 production token、digest、個人信箱或新聞全文。
+
+- [ ] Server 設定每位 tester 的 stable pseudonymous subject 與 SHA-256 digest，不保存 raw token；每位 token 不同且可個別撤銷。Extension／ZIP／public docs／logs 都找不到 raw token 或 provider key。
+- [ ] `/v1/access` 回目前 subject 的 UTC date、reset timestamp 與 per-subject／global `limits/used/remaining`；response 不含 raw token、digest、新聞或其他 subject 用量明細。
+- [ ] 接受一個 job 後，subject／global jobs 各加 1、characters 依 request 的 stripped text 長度增加；provider 後續失敗或 STOP 取消也不退 quota。因 active／outstanding capacity 拒絕且尚未 admission 的 request 不計 quota。
+- [ ] 分別觸發 subject jobs、subject characters、global jobs、global characters 上限；每次都回 generic 429，並有正確 `Retry-After`、`X-RateLimit-Reset`、`Remaining=0` 與 scope，UTC 午夜後可重新使用。
+- [ ] Restart backend 後同一 UTC 日的計數仍存在；SQLite schema／rows 只有 `utc_date/subject/jobs/characters`。跨 UTC 午夜操作會移除舊日期 rows，不保留新聞、音訊、raw token 或 digest。
+- [ ] Token A 建立的 pending／completed job，Token B 對同 ID 的 GET／DELETE 都得到與 unknown job 相同的 404；A 仍能完成或取消，沒有 ownership leakage。
+- [ ] Terminal completed／failed result第一次 GET 正常；第二次 GET 為 404，隨後 owner DELETE tombstone 仍回 204。大型 WAV 不能靠重複 GET 放大 egress。
+- [ ] 分別觸發每 subject outstanding jobs、global outstanding jobs、active jobs、per-subject terminal bytes與global terminal bytes caps；回 429 或安全 terminal failure，不持續增加 process memory。TTL 後 terminal／tombstone 被清除。
+- [ ] Nginx 以 client IP 分別限制 health、access、create、poll／delete request rate與同時 connection；429／拒絕不回顯 Authorization 或內部設定。Backend access logs 不記 `/v1/` request body或 token。
+- [ ] Private beta 只有一個 backend worker／replica，quota SQLite 位於 durable volume；restart／rollback smoke 通過。未改成 shared job registry 前，不做 multi-worker deployment。
+- [ ] 從 operator LAN 外以 reviewer 網路完成 `/health`、`/v1/access`、job、one-shot GET、DELETE 與 quota smoke；這項通過前不得宣稱 reviewer endpoint 可用或送審。
+
+## D. 本機重播與隱私
 
 在 service worker DevTools 的 Application 面板檢查 extension origin storage。先保持「在這台電腦保留朗讀音訊」關閉完成一次朗讀，再開啟功能測試：
 
@@ -82,7 +104,7 @@
 - [ ] 關閉 opt-in 時先出現確認；確認後 preference 為 disabled，所有 backend identity/history/audio 立即清空。取消確認則保留原狀；若清理失敗，錯誤須傳到 UI 且 preference 維持 enabled，不能顯示已關閉。
 - [ ] 「清除本次內容」只清當前 UI／session，不會冒充或觸發「清除所有重播記錄」。
 
-## D. 真實台語路徑
+## E. 真實台語路徑
 
 以正式台語 provider 測試；若測自架參考路徑，啟動 Ollama 與 concrete mode。先用 1–2 句短文確認端到端，再測完整段落。自架第一次執行要預留模型下載／載入時間。
 
@@ -92,7 +114,7 @@
 - [ ] 語速調整有效，不造成嚴重失真；停止操作能中止目前播放。
 - [ ] 文章分段後停頓自然，沒有漏句、重複或順序錯亂。
 
-## E. 母語者與長輩驗收
+## F. 母語者與長輩驗收
 
 至少邀請一位台語母語使用者與目標年齡層使用者，不先提供原文答案，試聽多個不同來源新聞：
 
