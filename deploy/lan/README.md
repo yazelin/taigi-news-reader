@@ -23,9 +23,12 @@ forwarding。
   CA；測試時也不可用 `-k` 掩蓋錯誤。
 - nginx 的 `allow 192.168.11.0/24; deny all;` 只適合可信家用 LAN。若有訪客
   Wi-Fi、不可信 IoT、上游 proxy 或不同 subnet，需先調整網路分段／真實 client
-  IP 設定。Extension ID header 與 Origin 都能被非瀏覽器 client 偽造，不能當
-  完整身分驗證；此方案依靠 LAN allowlist、固定 extension ID、兩者交叉驗證、
-  rate limit 與 backend active-job cap 做最小防護，不適合直接公開到 Internet。
+  IP 設定。Extension ID header 與 Origin 都能被非瀏覽器 client 偽造，所以
+  實際 `/v1/` request 另要求每位測試者自己的 Bearer invite token。backend
+  只保存 token 的 SHA-256 與不含個資的穩定 subject，並以 constant-time digest
+  比對。LAN allowlist、固定 extension ID、invite token、UTC-day quota、nginx
+  rate limit 與 process capacity cap 必須同時保留。本範本仍不適合不經額外
+  Internet edge hardening 就直接公開到 Internet。
 - `facebook/mms-tts-nan` 是 CC BY-NC 4.0 reference model；只有非商用情境才
   可照預設 `TAIGI_INSTALL_LOCAL_MMS=1` 使用。
 
@@ -40,8 +43,9 @@ cp backend.env.example backend.env
 chmod 600 lan.env backend.env
 ```
 
-在 `backend.env` 填入 Groq server-side key 與
-`chrome://extensions` 顯示的固定 32 字元 extension ID。key 只能留在目標
+在 `backend.env` 填入 Groq server-side key、
+`chrome://extensions` 顯示的固定 32 字元 extension ID，以及每位測試者的
+invite-token SHA-256。provider key 只能留在目標
 主機的未追蹤檔案或 secret manager；不要貼進 issue、shell history、nginx
 設定、extension 或 container image。Docker daemon 管理者仍能查看 container
 環境，因此主機管理權也必須受控。
@@ -52,14 +56,30 @@ chmod 600 lan.env backend.env
 TAIGI_EXTENSION_IDS=<fixed-id>
 TAIGI_ALLOW_LOCALHOST_ORIGINS=false
 TAIGI_REQUIRE_ALLOWED_ORIGIN=true
+TAIGI_REQUIRE_ACCESS_TOKEN=true
+TAIGI_ACCESS_TOKEN_HASHES=<pseudonymous-subject>=<lowercase-sha256>
+TAIGI_QUOTA_DATABASE_PATH=/var/lib/taigi/quota.sqlite3
 ```
 
 strict mode 若沒有固定 ID 會拒絕啟動。每個實際 `/v1/` request 都必須帶
 `X-Taigi-Extension-Id: <fixed-id>`；Chrome 有送 Origin 時，Origin 還必須是
 同一 ID。Chrome 的 GET polling 實測可能沒有 Origin，因此只要固定 ID header
 正確就能通過。CORS preflight 尚不能攜帶它正在申請的自訂 header，該 OPTIONS
-改以 exact Origin 驗證。任一檢查不符都回 403；`/health` 不觸發模型下載或
+改以 exact Origin 驗證。extension identity 不符回 403；missing、錯誤或已
+撤銷的 Bearer token 一律以相同 generic 401 回覆。`/health` 不觸發模型下載或
 付費請求，仍可供同 LAN readiness check。
+
+為每位測試者產生不同的高 entropy token。下列命令不把 token 本身放進 shell
+argument，但會在目前 terminal 顯示一次 plaintext 與 hash：
+
+```bash
+python -c 'import hashlib,secrets; t=secrets.token_urlsafe(32); print("invite token (store in password manager):",t); print("sha256 (backend.env only):",hashlib.sha256(t.encode()).hexdigest())'
+```
+
+把 plaintext 透過和服務網址不同的安全管道交給測試者，不能提交到 repo、填進
+nginx、放進 extension ZIP 或伺服器 log。`TAIGI_ACCESS_TOKEN_HASHES` 只填例如
+`reviewer-01=<hash>,tester-02=<hash>`；subject 請用不含姓名、email 的穩定代號。
+移除一筆 hash 並重啟 backend 就會撤銷該 token；遺失或懷疑外洩時不可重用。
 
 公開版本預設走 Groq OpenAI-compatible chat completions，不使用 Gemini Free。
 正式處理新聞前，organization admin 必須在 Groq Data Controls 實際啟用並
@@ -145,10 +165,18 @@ docker run --rm --network taigi_news_reader_edge \
 ```
 
 image 以非 root `taigi` user 執行；container root filesystem 為 read-only，
-模型 cache 是唯一持久 volume。`INSTALL_LOCAL_MMS=1` 會先從 PyTorch 官方 CPU
+模型 cache 與 `/var/lib/taigi` quota SQLite 是兩個具名持久 volume。SQLite
+使用 WAL、FULL synchronous、busy timeout 與 `BEGIN IMMEDIATE` 原子保留配額；
+lock、I/O 或 corruption 都讓 request 失敗，不可 fail open。啟動、查詢狀態與
+reserve 都會清除非當日資料，所以 DB 只保留目前 UTC 日期、穩定 subject、job
+數與字數，不保存原文、音訊、token、token hash 或 provider key。
+`INSTALL_LOCAL_MMS=1` 會先從 PyTorch 官方 CPU
 wheel index 安裝 CPU-only Torch，再安裝 `.[tts]` 並重用該版本；上面的 assertion
 必須通過，不能讓 CPU host image 帶 CUDA runtime。第一次 MMS request 仍可能
-下載大型模型並需要足夠 RAM／disk；先在維護時段完成。若改用 remote TTS，把
+下載大型模型並需要足夠 RAM／disk；先在維護時段完成。此部署必須保持 **一個
+backend replica、一個 uvicorn worker**，因為 job registry 在 process memory；
+`deploy.replicas: 1` 與 Dockerfile `--workers 1` 不可移除或用 `--scale` 覆蓋。
+若改用 remote TTS，把
 build arg 設為 0，並依 backend provider contract 使用 HTTPS endpoint。
 
 ## 4. 納入既有 nginx TLS server
@@ -173,12 +201,17 @@ build arg 設為 0，並依 backend provider contract 使用 HTTPS endpoint。
    實際 certificate path 或其他 virtual host。不要由本 repo 自動改 systemd、
    服務設定或現有 TLS key。
 
-範本只代理 `/health` 與 async synthesis jobs；保留的長連線
+範本只代理 `/health`、`GET /v1/access` 與 async synthesis jobs；保留的長連線
 `POST /v1/synthesize` 明確回 404。create 與約每秒一次的 polling 使用不同
-rate-limit zones，超量回 429；request body 上限為 32 KiB。nginx 與 backend
-都要求 exact extension ID header，並在 Origin 存在時交叉檢查。completed
-response 可能包含大型 WAV，因此 job proxy 關閉 response buffering，避免音訊
-落入 nginx proxy temp file。
+rate-limit zones，超量回 429；request body 上限為 32 KiB。三個 `/v1/` location
+都明確轉送 `Authorization`，並關閉 access log，避免 shared nginx 的自訂 log
+format 意外記錄 header；不得新增 `$http_authorization`、`$request_body` 或新聞
+文字到任何 log。nginx 與 backend 都要求 exact extension ID header，並在
+Origin 存在時交叉檢查。completed response 可能包含大型 WAV，因此 job proxy
+關閉 response buffering，避免音訊落入 nginx proxy temp file。terminal response
+只能成功 GET 一次，之後同一 job GET 為 404；小型 tombstone 讓 extension 緊接
+的 DELETE 仍可回 204。outstanding jobs 與 retained result bytes 另有 global／
+per-subject cap，避免未取走的 WAV 堆積 RAM。
 
 ## 5. 從另一台 LAN Chrome 裝置驗證
 
@@ -189,17 +222,24 @@ curl --fail https://<host>/taigi-tts/health
 curl -i -X OPTIONS https://<host>/taigi-tts/v1/synthesis-jobs \
   -H 'Origin: chrome-extension://<id>' \
   -H 'Access-Control-Request-Method: POST' \
-  -H 'Access-Control-Request-Headers: content-type,x-taigi-extension-id'
+  -H 'Access-Control-Request-Headers: authorization,content-type,x-taigi-extension-id'
 curl -i -X OPTIONS https://<host>/taigi-tts/v1/synthesis-jobs \
   -H 'Origin: https://not-allowed.example' \
   -H 'Access-Control-Request-Method: POST' \
-  -H 'Access-Control-Request-Headers: content-type,x-taigi-extension-id'
+  -H 'Access-Control-Request-Headers: authorization,content-type,x-taigi-extension-id'
+curl -i https://<host>/taigi-tts/v1/access \
+  -H 'Origin: chrome-extension://<id>' \
+  -H 'X-Taigi-Extension-Id: <id>' \
+  -H 'Authorization: Bearer <invite-token>'
 ```
 
-預期 allowed preflight 為 200、帶正確 CORS origin，且允許
+預期 allowed preflight 為 200、帶正確 CORS origin，且允許 `Authorization` 與
 `X-Taigi-Extension-Id`；錯誤 Origin 為 403。實際 POST/GET/DELETE 缺少或送錯
-該 header 都必須是 403；GET polling 即使沒有 Origin，正確 header 仍應進入
-正常 job response。
+identity header 都必須是 403；identity 正確但 Bearer token 缺少、錯誤或已撤銷
+則是相同 generic 401。`GET /v1/access` 的 200 代表 token 有效並回傳當日本人與
+global quota 狀態；GET polling 即使沒有 Origin，正確 identity 與 Bearer header
+仍應進入正常 job response。跨 subject GET/DELETE 別人的 job 一律像未知 UUID
+一樣回 404。
 LAN client 連 `http://192.168.11.11:8765/health` 必須失敗，而且
 `docker compose config` 不得出現 backend host port，
 `/taigi-tts/v1/synthesize` 必須是 404。最後才在 extension 設定

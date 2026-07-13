@@ -22,6 +22,7 @@ services:
       - /tmp:rw,noexec,nosuid,nodev,size=64m
     volumes:
       - model-cache:/var/cache/taigi
+      - quota-data:/var/lib/taigi
     cap_drop:
       - ALL
     security_opt:
@@ -29,6 +30,10 @@ services:
     init: true
     pids_limit: 512
     restart: unless-stopped
+    # Job state is deliberately process-local. Do not scale this service above
+    # one replica unless the job registry is replaced by a shared queue/store.
+    deploy:
+      replicas: 1
     stop_grace_period: 45s
     logging:
       driver: json-file
@@ -38,6 +43,7 @@ services:
 
 volumes:
   model-cache:
+  quota-data:
 
 networks:
   taigi_news_reader_edge:

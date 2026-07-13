@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from taigi_news_reader_backend.config import Settings
+from taigi_news_reader_backend.config import AccessTokenHash, Settings
 
 
 def test_concrete_defaults_are_local_real_providers():
@@ -189,3 +189,105 @@ def test_strict_extension_validation_loads_from_environment(monkeypatch):
     assert settings.extension_ids == (extension_id,)
     assert settings.allow_localhost_origins is False
     assert settings.require_allowed_origin is True
+
+
+def test_strict_access_authentication_requires_hashed_tokens_only():
+    with pytest.raises(ValueError, match="at least one configured hash"):
+        Settings(require_access_token=True)
+
+    digest = "a" * 64
+    settings = Settings(
+        require_access_token=True,
+        access_token_hashes=(
+            AccessTokenHash(subject="reviewer-01", sha256=digest),
+        ),
+    )
+
+    assert settings.require_access_token is True
+    assert settings.access_token_hashes[0].subject == "reviewer-01"
+    assert digest not in repr(settings)
+
+
+@pytest.mark.parametrize(
+    ("subject", "digest", "message"),
+    [
+        ("email@example.com", "a" * 64, "subject"),
+        ("", "a" * 64, "subject"),
+        ("reviewer", "A" * 64, "lowercase"),
+        ("reviewer", "not-a-sha256", "SHA-256"),
+    ],
+)
+def test_access_token_hash_entries_are_strictly_validated(subject, digest, message):
+    with pytest.raises(ValueError, match=message):
+        AccessTokenHash(subject=subject, sha256=digest)
+
+
+def test_access_token_subjects_and_hashes_must_be_unique():
+    first = AccessTokenHash(subject="tester-a", sha256="a" * 64)
+    with pytest.raises(ValueError, match="subjects must be unique"):
+        Settings(access_token_hashes=(first, AccessTokenHash("tester-a", "b" * 64)))
+    with pytest.raises(ValueError, match="digests must be unique"):
+        Settings(access_token_hashes=(first, AccessTokenHash("tester-b", "a" * 64)))
+
+
+def test_access_and_quota_configuration_loads_from_environment(monkeypatch):
+    monkeypatch.setenv("TAIGI_REQUIRE_ACCESS_TOKEN", "true")
+    monkeypatch.setenv(
+        "TAIGI_ACCESS_TOKEN_HASHES",
+        f"reviewer-01={'a' * 64},tester-02={'b' * 64}",
+    )
+    monkeypatch.setenv("TAIGI_QUOTA_DATABASE_PATH", "/tmp/quota.sqlite")
+    monkeypatch.setenv("TAIGI_DAILY_SUBJECT_JOB_LIMIT", "7")
+    monkeypatch.setenv("TAIGI_DAILY_SUBJECT_CHARACTER_LIMIT", "8000")
+    monkeypatch.setenv("TAIGI_DAILY_GLOBAL_JOB_LIMIT", "30")
+    monkeypatch.setenv("TAIGI_DAILY_GLOBAL_CHARACTER_LIMIT", "40000")
+    monkeypatch.setenv("TAIGI_MAX_ACTIVE_JOBS", "2")
+    monkeypatch.setenv("TAIGI_MAX_OUTSTANDING_JOBS", "8")
+    monkeypatch.setenv("TAIGI_MAX_OUTSTANDING_JOBS_PER_SUBJECT", "2")
+    monkeypatch.setenv("TAIGI_MAX_TERMINAL_RESULT_BYTES", "1000000")
+    monkeypatch.setenv(
+        "TAIGI_MAX_TERMINAL_RESULT_BYTES_PER_SUBJECT", "500000"
+    )
+    monkeypatch.setenv("TAIGI_TERMINAL_JOB_TTL_SECONDS", "300")
+
+    settings = Settings.from_env()
+
+    assert [entry.subject for entry in settings.access_token_hashes] == [
+        "reviewer-01",
+        "tester-02",
+    ]
+    assert settings.quota_database_path == "/tmp/quota.sqlite"
+    assert settings.daily_subject_job_limit == 7
+    assert settings.daily_subject_character_limit == 8000
+    assert settings.daily_global_job_limit == 30
+    assert settings.daily_global_character_limit == 40000
+    assert settings.max_active_jobs == 2
+    assert settings.max_outstanding_jobs == 8
+    assert settings.max_outstanding_jobs_per_subject == 2
+    assert settings.max_terminal_result_bytes == 1000000
+    assert settings.max_terminal_result_bytes_per_subject == 500000
+    assert settings.terminal_job_ttl_seconds == 300
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"daily_subject_job_limit": 0}, "positive"),
+        (
+            {"max_active_jobs": 5, "max_outstanding_jobs": 4},
+            "at least max_active_jobs",
+        ),
+        ({"max_outstanding_jobs_per_subject": 13}, "between 1"),
+        (
+            {
+                "max_terminal_result_bytes": 10,
+                "max_terminal_result_bytes_per_subject": 11,
+            },
+            "between 1",
+        ),
+        ({"terminal_job_ttl_seconds": 0}, "positive"),
+    ],
+)
+def test_access_capacity_configuration_rejects_unsafe_bounds(overrides, message):
+    with pytest.raises(ValueError, match=message):
+        Settings(**overrides)

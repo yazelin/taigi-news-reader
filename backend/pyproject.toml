@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "taigi-news-reader-backend"
-version = "0.1.0"
+version = "0.1.2"
 description = "Local Taiwanese Hokkien translation and speech service for the Taigi News Reader extension"
 requires-python = ">=3.12"
 dependencies = [
@@ -32,4 +32,3 @@ packages = ["taigi_news_reader_backend"]
 addopts = "-ra"
 testpaths = ["tests"]
 asyncio_mode = "auto"
-

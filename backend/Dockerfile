@@ -20,8 +20,8 @@ RUN if [ "$INSTALL_LOCAL_MMS" = "1" ]; then \
     fi && \
     groupadd --system taigi && \
     useradd --system --gid taigi --create-home taigi && \
-    mkdir -p /var/cache/taigi && \
-    chown -R taigi:taigi /var/cache/taigi
+    mkdir -p /var/cache/taigi /var/lib/taigi && \
+    chown -R taigi:taigi /var/cache/taigi /var/lib/taigi
 
 ENV HF_HOME=/var/cache/taigi/huggingface
 
@@ -31,4 +31,6 @@ EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=2)"]
 
-CMD ["uvicorn", "taigi_news_reader_backend.app:app", "--host", "0.0.0.0", "--port", "8765"]
+# Jobs are memory-local while authentication quotas are SQLite-backed. Keep one
+# worker so a poll always reaches the process that owns its synthesis job.
+CMD ["uvicorn", "taigi_news_reader_backend.app:app", "--host", "0.0.0.0", "--port", "8765", "--workers", "1"]

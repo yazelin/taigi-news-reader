@@ -1,5 +1,6 @@
 """HTTP API models."""
 
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -34,6 +35,23 @@ class HealthResponse(BaseModel):
     mode: Literal["concrete", "mock"]
     translator: str
     synthesizer: str
+
+
+class QuotaCounts(BaseModel):
+    subject_jobs: int = Field(ge=0)
+    subject_characters: int = Field(ge=0)
+    global_jobs: int = Field(ge=0)
+    global_characters: int = Field(ge=0)
+
+
+class AccessResponse(BaseModel):
+    authentication_required: bool
+    subject: str | None = None
+    utc_date: date | None = None
+    resets_at: datetime | None = None
+    limits: QuotaCounts | None = None
+    used: QuotaCounts | None = None
+    remaining: QuotaCounts | None = None
 
 
 class SynthesisJobAccepted(BaseModel):

@@ -7,10 +7,16 @@ import uuid
 import wave
 
 import httpx
+import pytest
 
 from taigi_news_reader_backend.app import create_app
 from taigi_news_reader_backend.config import Settings
-from taigi_news_reader_backend.jobs import JobManager, UNEXPECTED_JOB_ERROR
+from taigi_news_reader_backend.jobs import (
+    DELIVERY_CAPACITY_ERROR,
+    JobCapacityError,
+    JobManager,
+    UNEXPECTED_JOB_ERROR,
+)
 from taigi_news_reader_backend.models import SynthesizeResponse
 from taigi_news_reader_backend.providers import ProviderError
 from taigi_news_reader_backend.providers.mms import float_waveform_to_wav
@@ -215,6 +221,8 @@ async def test_active_capacity_rejects_until_pending_job_is_deleted():
     full = await request(app, "POST", "/v1/synthesis-jobs", json=REQUEST)
     assert full.status_code == 429
     assert full.json() == {"detail": "too many active synthesis jobs"}
+    assert full.headers["retry-after"] == "5"
+    assert full.headers["x-ratelimit-scope"] == "active_jobs"
 
     assert (
         await request(app, "DELETE", f"/v1/synthesis-jobs/{first_id}")
@@ -222,6 +230,66 @@ async def test_active_capacity_rejects_until_pending_job_is_deleted():
     replacement = await request(app, "POST", "/v1/synthesis-jobs", json=REQUEST)
     assert replacement.status_code == 202
     await manager.shutdown()
+
+
+async def test_capacity_rejection_happens_before_durable_admission_callback():
+    service = DeferredService()
+    manager = JobManager(service, max_active_jobs=1)
+    first_id = await manager.create(REQUEST["text"], 1.0, owner="tester-a")
+    await asyncio.wait_for(service.started.wait(), timeout=1)
+    admissions: list[str] = []
+
+    with pytest.raises(JobCapacityError, match="active"):
+        await manager.create(
+            REQUEST["text"],
+            1.0,
+            owner="tester-b",
+            admit=lambda: admissions.append("charged"),
+        )
+
+    assert admissions == []
+    await manager.delete(first_id)
+
+
+async def test_outstanding_job_caps_bound_terminal_records_per_owner_and_global():
+    service = ImmediateService(wav_result())
+    manager = JobManager(
+        service,
+        max_active_jobs=2,
+        max_outstanding_jobs=2,
+        max_outstanding_jobs_per_owner=1,
+    )
+    first_id = await manager.create(REQUEST["text"], 1.0, owner="tester-a")
+    for _ in range(100):
+        first = await manager.get(first_id)
+        if first is not None and first.status == "completed":
+            break
+        await asyncio.sleep(0)
+
+    with pytest.raises(JobCapacityError, match="this subject"):
+        await manager.create(REQUEST["text"], 1.0, owner="tester-a")
+    second_id = await manager.create(REQUEST["text"], 1.0, owner="tester-b")
+    with pytest.raises(JobCapacityError, match="outstanding"):
+        await manager.create(REQUEST["text"], 1.0, owner="tester-c")
+
+    await manager.delete(first_id)
+    await manager.delete(second_id)
+
+
+async def test_terminal_result_bytes_are_bounded_with_safe_failure():
+    service = ImmediateService(wav_result())
+    manager = JobManager(
+        service,
+        max_terminal_bytes=1,
+        max_terminal_bytes_per_owner=1,
+    )
+    app = create_app(Settings(provider_mode="mock"), service, manager)
+    created = await request(app, "POST", "/v1/synthesis-jobs", json=REQUEST)
+
+    failed = await wait_for_status(app, created.json()["job_id"], "failed")
+
+    assert failed.json()["error"] == DELIVERY_CAPACITY_ERROR
+    assert "audio_base64" not in failed.text
 
 
 async def test_terminal_job_is_opportunistically_pruned_after_monotonic_ttl():
@@ -235,17 +303,36 @@ async def test_terminal_job_is_opportunistically_pruned_after_monotonic_ttl():
     app = create_app(Settings(provider_mode="mock"), service, manager)
     created = await request(app, "POST", "/v1/synthesis-jobs", json=REQUEST)
     job_id = created.json()["job_id"]
-    await wait_for_status(app, job_id, "completed")
+    for _ in range(100):
+        view = await manager.get(job_id)
+        if view is not None and view.status == "completed":
+            break
+        await asyncio.sleep(0)
+    else:
+        raise AssertionError("job never completed")
 
     now[0] = 699.9
-    assert (
-        await request(app, "GET", f"/v1/synthesis-jobs/{job_id}")
-    ).status_code == 200
+    assert (await manager.get(job_id)) is not None
     now[0] = 700.0
-    assert (
-        await request(app, "GET", f"/v1/synthesis-jobs/{job_id}")
-    ).status_code == 404
+    assert (await manager.get(job_id)) is None
     await manager.shutdown()
+
+
+async def test_terminal_http_result_is_delivered_only_once_then_delete_succeeds():
+    service = ImmediateService(wav_result())
+    manager = JobManager(service)
+    app = create_app(Settings(provider_mode="mock"), service, manager)
+    created = await request(app, "POST", "/v1/synthesis-jobs", json=REQUEST)
+    job_id = created.json()["job_id"]
+
+    delivered = await wait_for_status(app, job_id, "completed")
+    repeated = await request(app, "GET", f"/v1/synthesis-jobs/{job_id}")
+    deleted = await request(app, "DELETE", f"/v1/synthesis-jobs/{job_id}")
+
+    assert delivered.status_code == 200
+    assert repeated.status_code == 404
+    assert deleted.status_code == 204
+    assert job_id not in manager._jobs
 
 
 async def test_async_endpoint_enforces_same_runtime_text_limit_as_direct_endpoint():

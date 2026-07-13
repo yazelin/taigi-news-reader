@@ -25,6 +25,7 @@ map "$request_method|$taigi_extension_identity_allowed|$taigi_extension_origin_a
 # One extension polls at roughly 1 request/second. These bounds leave room for
 # the backend's four-job cap while limiting accidental or abusive LAN traffic.
 limit_req_zone $binary_remote_addr zone=taigi_health:1m rate=30r/m;
+limit_req_zone $binary_remote_addr zone=taigi_access:1m rate=30r/m;
 limit_req_zone $binary_remote_addr zone=taigi_create:1m rate=12r/m;
 limit_req_zone $binary_remote_addr zone=taigi_jobs:1m rate=300r/m;
 limit_conn_zone $binary_remote_addr zone=taigi_connections:1m;

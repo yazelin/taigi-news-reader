@@ -56,7 +56,9 @@ fetch must survive a long translation and TTS operation:
 1. `POST /v1/synthesis-jobs` returns HTTP 202 with a UUID4 `job_id` and
    `status: "pending"`.
 2. Short `GET /v1/synthesis-jobs/{job_id}` requests return `pending`,
-   `completed` with the synthesis result, or `failed` with a safe error.
+   `completed` with the synthesis result, or `failed` with a safe error. A
+   terminal response is delivered only once; later GETs return the same 404 as
+   an unknown or other subject's job.
 3. The client calls `DELETE /v1/synthesis-jobs/{job_id}` after reading a
    terminal result. STOP also sends DELETE, which cancels a still-active task.
 
@@ -65,15 +67,46 @@ only as an argument of the active synthesis task; it is never copied into the
 job registry or written to disk. Completed results and safe failure messages
 become eligible for opportunistic pruning after 600 seconds; the next job API
 operation removes them, while the extension normally deletes them as soon as
-it consumes them. IDs are UUID4, at most four jobs may be active at once, and
-excess creation returns HTTP 429. Application shutdown cancels every active
-task and clears the registry.
+it consumes them. IDs are UUID4. Active jobs, all outstanding records,
+outstanding records per subject, retained terminal bytes globally, and retained
+terminal bytes per subject each have independent caps; excess creation returns
+HTTP 429 with retry guidance. A one-shot terminal GET clears its retained
+result immediately but leaves a small tombstone so the normal follow-up DELETE
+can still succeed. Application shutdown cancels every active task and clears
+the registry.
 
 This design has no durable queue: a process restart loses all jobs, and UUID4
 is not a substitute for authentication or rate limiting. `POST /v1/synthesize`
 remains available for direct API integrations and diagnostics, but the Chrome
 flow does not keep that long request open. The offscreen document performs only
 Blob conversion and audio playback; it owns no synthesis network request.
+
+## Private-tester access and quotas
+
+Local and mock development stay open by default. A private deployment enables
+`TAIGI_REQUIRE_ACCESS_TOKEN=true` and configures
+`TAIGI_ACCESS_TOKEN_HASHES` as comma-separated
+`pseudonymous-subject=lowercase-sha256` entries. The plaintext invite token is
+never configured on the server, bundled in the extension, written to the quota
+database, or included in an error. Every actual `/v1/` request then requires
+`Authorization: Bearer <invite-token>`; missing, invalid, and revoked values all
+receive the same generic 401. Hash comparison checks every configured entry
+with `hmac.compare_digest`. Remove a hash and restart to revoke it.
+
+`GET /v1/access` validates the token and returns that subject's current UTC-day
+quota plus global usage. Synthesis admission transactionally reserves one job
+and the stripped Unicode character count before provider work starts. Accepted
+jobs are not refunded after provider failure or cancellation. Per-subject and
+global job/character caps are enforced in SQLite with WAL, FULL synchronous,
+busy timeout, and `BEGIN IMMEDIATE`; database lock, I/O, or corruption fails the
+request closed. Startup, status, and reservation remove non-current dates, so
+the durable schema retains only the current UTC date, pseudonymous subject, job
+count, and character count—never news text, audio, a raw/digest token, or a
+provider key.
+
+The job registry remains process-local, so private deployment must run exactly
+one replica and one uvicorn worker. SQLite makes quota admission durable and
+atomic, but it does not make synthesis jobs shareable between workers.
 
 The final Chromium 150 fixture remained `preparing` at 37.01 seconds with the
 service worker alive, 37 short GET polls completed, and exactly one active job.
@@ -111,12 +144,13 @@ and polling separately, and does not expose the retained direct
 
 Set `TAIGI_REQUIRE_ALLOWED_ORIGIN=true`, pin at least one exact
 `TAIGI_EXTENSION_IDS` value, and disable localhost origins for that deployment.
-Strict mode requires every actual `/v1/` request to send the pinned ID in
+Strict origin mode requires every actual `/v1/` request to send the pinned ID in
 `X-Taigi-Extension-Id`. A supplied Origin must also be allowed and must match
 that ID; CORS preflight is validated by its Origin because browsers do not send
-the requested custom header until preflight succeeds. This remains defense in
-depth rather than authentication because a non-browser client can forge both
-headers.
+the requested custom headers until preflight succeeds. CORS explicitly permits
+`Authorization`. Extension identity remains defense in depth because a
+non-browser client can forge both identity headers; the Bearer invite token is
+the private-tester authentication credential.
 
 ## Test
 
@@ -127,4 +161,5 @@ python -m pip install -e '.[dev]'
 python -m pytest -q
 ```
 
-Current backend result: `100 passed`.
+Run the suite for the current result rather than relying on a stale count in
+documentation.

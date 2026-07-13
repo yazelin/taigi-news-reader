@@ -8,10 +8,19 @@ from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .access import (
+    DailyQuotaStore,
+    OPEN_ACCESS_SUBJECT,
+    QuotaExceededError,
+    QuotaSnapshot,
+    TokenAuthenticator,
+)
 from .config import Settings
 from .jobs import JobCapacityError, JobManager, UNEXPECTED_JOB_ERROR
 from .models import (
+    AccessResponse,
     HealthResponse,
+    QuotaCounts,
     SynthesisJobAccepted,
     SynthesisJobCompleted,
     SynthesisJobFailed,
@@ -80,10 +89,30 @@ def create_app(
     settings: Settings | None = None,
     service: SynthesisService | None = None,
     job_manager: JobManager | None = None,
+    quota_store: DailyQuotaStore | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     service = service or build_service(settings)
-    job_manager = job_manager or JobManager(service)
+    job_manager = job_manager or JobManager(
+        service,
+        max_active_jobs=settings.max_active_jobs,
+        max_outstanding_jobs=settings.max_outstanding_jobs,
+        max_outstanding_jobs_per_owner=(
+            settings.max_outstanding_jobs_per_subject
+        ),
+        max_terminal_bytes=settings.max_terminal_result_bytes,
+        max_terminal_bytes_per_owner=(
+            settings.max_terminal_result_bytes_per_subject
+        ),
+        terminal_ttl_seconds=settings.terminal_job_ttl_seconds,
+    )
+    authenticator = (
+        TokenAuthenticator(settings.access_token_hashes)
+        if settings.require_access_token
+        else None
+    )
+    if settings.require_access_token and quota_store is None:
+        quota_store = DailyQuotaStore.from_settings(settings)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -93,24 +122,42 @@ def create_app(
             try:
                 await job_manager.shutdown()
             finally:
-                await service.aclose()
+                try:
+                    await service.aclose()
+                finally:
+                    if quota_store is not None:
+                        quota_store.close()
 
     application = FastAPI(
         title="Taigi News Reader API",
-        version="0.1.0",
+        version="0.1.2",
         lifespan=lifespan,
     )
     application.state.settings = settings
     application.state.synthesis_service = service
     application.state.job_manager = job_manager
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=settings.cors_origin_regex(),
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "X-Taigi-Extension-Id"],
-        max_age=600,
-    )
+    application.state.quota_store = quota_store
+    application.state.token_authenticator = authenticator
+
+    @application.middleware("http")
+    async def require_access_credential(request: Request, call_next):
+        if request.url.path.startswith("/v1/") and request.method != "OPTIONS":
+            subject = OPEN_ACCESS_SUBJECT
+            if authenticator is not None:
+                subject = authenticator.authenticate(
+                    request.headers.get("authorization")
+                )
+                if subject is None:
+                    return JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={"detail": "access credential is not accepted"},
+                        headers={
+                            "WWW-Authenticate": 'Bearer realm="taigi-news-reader"',
+                            "Cache-Control": "no-store",
+                        },
+                    )
+            request.state.access_subject = subject
+        return await call_next(request)
 
     if settings.require_allowed_origin:
 
@@ -140,6 +187,28 @@ def create_app(
                     )
             return await call_next(request)
 
+    # Register CORS after security middleware so it is the outermost layer.
+    # This lets Chrome read generic 401/403 responses while CORS itself handles
+    # browser preflights before bearer authentication is possible.
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=settings.cors_origin_regex(),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Taigi-Extension-Id",
+        ],
+        expose_headers=[
+            "Retry-After",
+            "X-RateLimit-Reset",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Scope",
+        ],
+        max_age=600,
+    )
+
     @application.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
         # Health is intentionally readiness-light: it does not download the MMS
@@ -150,9 +219,25 @@ def create_app(
             synthesizer=service.synthesizer.name,
         )
 
+    @application.get("/v1/access", response_model=AccessResponse)
+    async def access_status(http_request: Request) -> AccessResponse:
+        if quota_store is None:
+            return AccessResponse(authentication_required=False)
+        snapshot = quota_store.status(access_subject(http_request))
+        return access_response(snapshot)
+
     @application.post("/v1/synthesize", response_model=SynthesizeResponse)
-    async def synthesize(request: SynthesizeRequest) -> SynthesizeResponse:
+    async def synthesize(
+        request: SynthesizeRequest,
+        http_request: Request,
+    ) -> SynthesizeResponse:
         enforce_text_limit(request)
+        if quota_store is not None:
+            reserve_quota(
+                quota_store,
+                access_subject(http_request),
+                len(request.text),
+            )
         try:
             return await service.synthesize(request.text, request.rate)
         except ProviderError as exc:
@@ -168,14 +253,33 @@ def create_app(
     )
     async def create_synthesis_job(
         request: SynthesizeRequest,
+        http_request: Request,
     ) -> SynthesisJobAccepted:
         enforce_text_limit(request)
+        owner = access_subject(http_request)
         try:
-            job_id = await job_manager.create(request.text, request.rate)
+            job_id = await job_manager.create(
+                request.text,
+                request.rate,
+                owner=owner,
+                admit=(
+                    lambda: reserve_quota(
+                        quota_store,
+                        owner,
+                        len(request.text),
+                    )
+                    if quota_store is not None
+                    else None
+                ),
+            )
         except JobCapacityError as exc:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=str(exc),
+                headers={
+                    "Retry-After": "5",
+                    "X-RateLimit-Scope": "active_jobs",
+                },
             ) from exc
         return SynthesisJobAccepted(job_id=job_id)
 
@@ -183,8 +287,15 @@ def create_app(
         "/v1/synthesis-jobs/{job_id}",
         response_model=SynthesisJobResponse,
     )
-    async def get_synthesis_job(job_id: str) -> SynthesisJobResponse:
-        job = await job_manager.get(job_id)
+    async def get_synthesis_job(
+        job_id: str,
+        http_request: Request,
+    ) -> SynthesisJobResponse:
+        job = await job_manager.get(
+            job_id,
+            owner=access_subject(http_request),
+            consume_terminal=True,
+        )
         if job is None:
             raise job_not_found()
         if job.status == "pending":
@@ -200,8 +311,11 @@ def create_app(
         "/v1/synthesis-jobs/{job_id}",
         status_code=status.HTTP_204_NO_CONTENT,
     )
-    async def delete_synthesis_job(job_id: str) -> Response:
-        if not await job_manager.delete(job_id):
+    async def delete_synthesis_job(job_id: str, http_request: Request) -> Response:
+        if not await job_manager.delete(
+            job_id,
+            owner=access_subject(http_request),
+        ):
             raise job_not_found()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -211,6 +325,58 @@ def create_app(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=f"text exceeds the configured {settings.max_text_chars}-character limit",
             )
+
+    def access_subject(request: Request) -> str:
+        return getattr(request.state, "access_subject", OPEN_ACCESS_SUBJECT)
+
+    def reserve_quota(
+        store: DailyQuotaStore,
+        subject: str,
+        characters: int,
+    ) -> None:
+        try:
+            store.reserve(subject, characters)
+        except QuotaExceededError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="daily synthesis quota exceeded",
+                headers=exc.response_headers(),
+            ) from exc
+
+    def access_response(snapshot: QuotaSnapshot) -> AccessResponse:
+        limits = QuotaCounts(
+            subject_jobs=snapshot.subject_job_limit,
+            subject_characters=snapshot.subject_character_limit,
+            global_jobs=snapshot.global_job_limit,
+            global_characters=snapshot.global_character_limit,
+        )
+        used = QuotaCounts(
+            subject_jobs=snapshot.subject_jobs,
+            subject_characters=snapshot.subject_characters,
+            global_jobs=snapshot.global_jobs,
+            global_characters=snapshot.global_characters,
+        )
+        remaining = QuotaCounts(
+            subject_jobs=max(0, limits.subject_jobs - used.subject_jobs),
+            subject_characters=max(
+                0,
+                limits.subject_characters - used.subject_characters,
+            ),
+            global_jobs=max(0, limits.global_jobs - used.global_jobs),
+            global_characters=max(
+                0,
+                limits.global_characters - used.global_characters,
+            ),
+        )
+        return AccessResponse(
+            authentication_required=True,
+            subject=snapshot.subject,
+            utc_date=snapshot.utc_date,
+            resets_at=snapshot.resets_at,
+            limits=limits,
+            used=used,
+            remaining=remaining,
+        )
 
     def job_not_found() -> HTTPException:
         return HTTPException(

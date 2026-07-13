@@ -23,9 +23,13 @@ def test_compose_keeps_uvicorn_off_host_ports_and_drops_privileges():
     assert compose.count("taigi_news_reader_edge:") == 2
     assert "- taigi-news-reader" in compose
     assert "read_only: true" in compose
+    assert "quota-data:/var/lib/taigi" in compose
+    assert "replicas: 1" in compose
     assert "no-new-privileges:true" in compose
     assert "cap_drop:" in compose and "- ALL" in compose
     assert "USER taigi" in dockerfile
+    assert '"--workers", "1"' in dockerfile
+    assert "/var/lib/taigi" in dockerfile
 
 
 def test_local_mms_build_installs_cpu_torch_before_tts_extra():
@@ -50,6 +54,15 @@ def test_lan_environment_is_fail_closed_and_contains_no_example_secret():
     assert "TAIGI_EXTENSION_IDS=\n" in environment
     assert "TAIGI_ALLOW_LOCALHOST_ORIGINS=false" in environment
     assert "TAIGI_REQUIRE_ALLOWED_ORIGIN=true" in environment
+    assert "TAIGI_REQUIRE_ACCESS_TOKEN=true" in environment
+    assert "TAIGI_ACCESS_TOKEN_HASHES=\n" in environment
+    assert "TAIGI_QUOTA_DATABASE_PATH=/var/lib/taigi/quota.sqlite3" in environment
+    assert "TAIGI_DAILY_SUBJECT_JOB_LIMIT=" in environment
+    assert "TAIGI_DAILY_SUBJECT_CHARACTER_LIMIT=" in environment
+    assert "TAIGI_DAILY_GLOBAL_JOB_LIMIT=" in environment
+    assert "TAIGI_DAILY_GLOBAL_CHARACTER_LIMIT=" in environment
+    assert "TAIGI_MAX_OUTSTANDING_JOBS_PER_SUBJECT=" in environment
+    assert "TAIGI_MAX_TERMINAL_RESULT_BYTES_PER_SUBJECT=" in environment
 
 
 def test_nginx_template_has_tls_front_door_controls():
@@ -66,14 +79,21 @@ def test_nginx_template_has_tls_front_door_controls():
     assert "limit_req_status 429" in http
     assert "resolver 127.0.0.11" in http
     assert "server taigi-news-reader:8765 resolve;" in http
-    assert "allow 192.168.11.0/24;" in locations
+    assert locations.count("allow 192.168.11.0/24;") == 4
     assert "deny all;" in locations
     assert locations.count(
         "if ($taigi_extension_request_allowed = 0) { return 403; }"
-    ) == 2
+    ) == 3
     assert locations.count(
         "proxy_set_header X-Taigi-Extension-Id $http_x_taigi_extension_id;"
-    ) == 2
+    ) == 3
+    assert locations.count(
+        "proxy_set_header Authorization $http_authorization;"
+    ) == 3
+    assert locations.count("access_log off;") == 3
+    assert "$request_body" not in locations
+    assert "$http_authorization" not in http
+    assert "location = /taigi-tts/v1/access" in locations
     assert "client_max_body_size 32k;" in locations
     assert locations.count("proxy_buffering off;") >= 2
     assert "proxy_pass http://taigi_backend/v1/synthesis-jobs;" in locations
@@ -96,3 +116,7 @@ def test_lan_runbook_persists_dedicated_nginx_network_and_rollback():
     assert "docker compose up -d --no-deps nginx" in runbook
     assert "/home/ct/nginx/taigi-locations.inc" in runbook
     assert "docker network rm taigi_news_reader_edge" in runbook
+    assert "TAIGI_REQUIRE_ACCESS_TOKEN=true" in runbook
+    assert "TAIGI_ACCESS_TOKEN_HASHES=" in runbook
+    assert "一個 uvicorn worker" in runbook
+    assert "不保存原文、音訊、token、token hash 或 provider key" in runbook

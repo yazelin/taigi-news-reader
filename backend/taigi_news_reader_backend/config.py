@@ -48,6 +48,40 @@ def _validate_secret_bearing_url(value: str, *, name: str) -> None:
 
 
 @dataclass(frozen=True, slots=True)
+class AccessTokenHash:
+    """A stable pseudonymous subject mapped to one SHA-256 token digest."""
+
+    subject: str
+    sha256: str = field(repr=False)
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", self.subject):
+            raise ValueError(
+                "access token subject must be 1-64 letters, numbers, dots, underscores, or hyphens"
+            )
+        if not re.fullmatch(r"[0-9a-f]{64}", self.sha256):
+            raise ValueError(
+                "access token digest must be a lowercase 64-character SHA-256 hex value"
+            )
+
+
+def _get_access_token_hashes() -> tuple[AccessTokenHash, ...]:
+    raw = os.getenv("TAIGI_ACCESS_TOKEN_HASHES", "")
+    entries: list[AccessTokenHash] = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise ValueError(
+                "TAIGI_ACCESS_TOKEN_HASHES entries must use subject=sha256 format"
+            )
+        subject, digest = (part.strip() for part in item.split("=", 1))
+        entries.append(AccessTokenHash(subject=subject, sha256=digest))
+    return tuple(entries)
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     provider_mode: str = "concrete"
     translator_provider: str = "ollama"
@@ -77,6 +111,22 @@ class Settings:
     extension_ids: tuple[str, ...] = ()
     allow_localhost_origins: bool = True
     require_allowed_origin: bool = False
+    require_access_token: bool = False
+    access_token_hashes: tuple[AccessTokenHash, ...] = field(
+        default=(),
+        repr=False,
+    )
+    quota_database_path: str = "./taigi-access.sqlite3"
+    daily_subject_job_limit: int = 20
+    daily_subject_character_limit: int = 50_000
+    daily_global_job_limit: int = 100
+    daily_global_character_limit: int = 250_000
+    max_active_jobs: int = 4
+    max_outstanding_jobs: int = 12
+    max_outstanding_jobs_per_subject: int = 3
+    max_terminal_result_bytes: int = 128 * 1024 * 1024
+    max_terminal_result_bytes_per_subject: int = 40 * 1024 * 1024
+    terminal_job_ttl_seconds: int = 600
 
     def __post_init__(self) -> None:
         if self.provider_mode not in {"concrete", "mock"}:
@@ -106,6 +156,45 @@ class Settings:
             raise ValueError(
                 "strict extension validation requires at least one Chrome extension ID"
             )
+        subjects = [entry.subject for entry in self.access_token_hashes]
+        digests = [entry.sha256 for entry in self.access_token_hashes]
+        if len(subjects) != len(set(subjects)):
+            raise ValueError("access token subjects must be unique")
+        if len(digests) != len(set(digests)):
+            raise ValueError("access token SHA-256 digests must be unique")
+        if self.require_access_token and not self.access_token_hashes:
+            raise ValueError(
+                "strict access-token authentication requires at least one configured hash"
+            )
+        if not self.quota_database_path.strip():
+            raise ValueError("quota_database_path must not be blank")
+        quota_values = {
+            "daily_subject_job_limit": self.daily_subject_job_limit,
+            "daily_subject_character_limit": self.daily_subject_character_limit,
+            "daily_global_job_limit": self.daily_global_job_limit,
+            "daily_global_character_limit": self.daily_global_character_limit,
+        }
+        for name, value in quota_values.items():
+            if value < 1:
+                raise ValueError(f"{name} must be positive")
+        if self.max_active_jobs < 1:
+            raise ValueError("max_active_jobs must be positive")
+        if self.max_outstanding_jobs < self.max_active_jobs:
+            raise ValueError(
+                "max_outstanding_jobs must be at least max_active_jobs"
+            )
+        if not 1 <= self.max_outstanding_jobs_per_subject <= self.max_outstanding_jobs:
+            raise ValueError(
+                "max_outstanding_jobs_per_subject must be between 1 and max_outstanding_jobs"
+            )
+        if self.max_terminal_result_bytes < 1:
+            raise ValueError("max_terminal_result_bytes must be positive")
+        if not 1 <= self.max_terminal_result_bytes_per_subject <= self.max_terminal_result_bytes:
+            raise ValueError(
+                "max_terminal_result_bytes_per_subject must be between 1 and max_terminal_result_bytes"
+            )
+        if self.terminal_job_ttl_seconds < 1:
+            raise ValueError("terminal_job_ttl_seconds must be positive")
         if self.provider_mode == "concrete":
             if self.translator_provider == "openai_compatible":
                 if not self.openai_base_url or not self.openai_model or not self.openai_api_key:
@@ -205,6 +294,73 @@ class Settings:
             ),
             require_allowed_origin=_get_bool(
                 "TAIGI_REQUIRE_ALLOWED_ORIGIN", False
+            ),
+            require_access_token=_get_bool(
+                "TAIGI_REQUIRE_ACCESS_TOKEN", False
+            ),
+            access_token_hashes=_get_access_token_hashes(),
+            quota_database_path=os.getenv(
+                "TAIGI_QUOTA_DATABASE_PATH", "./taigi-access.sqlite3"
+            ),
+            daily_subject_job_limit=_get_int(
+                "TAIGI_DAILY_SUBJECT_JOB_LIMIT",
+                20,
+                minimum=1,
+                maximum=1_000_000,
+            ),
+            daily_subject_character_limit=_get_int(
+                "TAIGI_DAILY_SUBJECT_CHARACTER_LIMIT",
+                50_000,
+                minimum=1,
+                maximum=2_000_000_000,
+            ),
+            daily_global_job_limit=_get_int(
+                "TAIGI_DAILY_GLOBAL_JOB_LIMIT",
+                100,
+                minimum=1,
+                maximum=1_000_000,
+            ),
+            daily_global_character_limit=_get_int(
+                "TAIGI_DAILY_GLOBAL_CHARACTER_LIMIT",
+                250_000,
+                minimum=1,
+                maximum=2_000_000_000,
+            ),
+            max_active_jobs=_get_int(
+                "TAIGI_MAX_ACTIVE_JOBS",
+                4,
+                minimum=1,
+                maximum=1_000,
+            ),
+            max_outstanding_jobs=_get_int(
+                "TAIGI_MAX_OUTSTANDING_JOBS",
+                12,
+                minimum=1,
+                maximum=10_000,
+            ),
+            max_outstanding_jobs_per_subject=_get_int(
+                "TAIGI_MAX_OUTSTANDING_JOBS_PER_SUBJECT",
+                3,
+                minimum=1,
+                maximum=10_000,
+            ),
+            max_terminal_result_bytes=_get_int(
+                "TAIGI_MAX_TERMINAL_RESULT_BYTES",
+                128 * 1024 * 1024,
+                minimum=1,
+                maximum=2_000_000_000,
+            ),
+            max_terminal_result_bytes_per_subject=_get_int(
+                "TAIGI_MAX_TERMINAL_RESULT_BYTES_PER_SUBJECT",
+                40 * 1024 * 1024,
+                minimum=1,
+                maximum=2_000_000_000,
+            ),
+            terminal_job_ttl_seconds=_get_int(
+                "TAIGI_TERMINAL_JOB_TTL_SECONDS",
+                600,
+                minimum=1,
+                maximum=86_400,
             ),
         )
 

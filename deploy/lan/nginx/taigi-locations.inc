@@ -24,6 +24,31 @@ location = /taigi-tts/health {
     add_header X-Content-Type-Options "nosniff" always;
 }
 
+location = /taigi-tts/v1/access {
+    allow 127.0.0.1;
+    allow 192.168.11.0/24;
+    deny all;
+    if ($taigi_extension_request_allowed = 0) { return 403; }
+
+    limit_req zone=taigi_access burst=5 nodelay;
+    limit_conn taigi_connections 8;
+    client_max_body_size 1k;
+    access_log off;
+    proxy_pass http://taigi_backend/v1/access;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header Origin $http_origin;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header X-Taigi-Extension-Id $http_x_taigi_extension_id;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_connect_timeout 3s;
+    proxy_read_timeout 10s;
+    add_header Cache-Control "no-store" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}
+
 location = /taigi-tts/v1/synthesis-jobs {
     allow 127.0.0.1;
     allow 192.168.11.0/24;
@@ -33,11 +58,13 @@ location = /taigi-tts/v1/synthesis-jobs {
     limit_req zone=taigi_create burst=4 nodelay;
     limit_conn taigi_connections 8;
     client_max_body_size 32k;
+    access_log off;
     proxy_pass http://taigi_backend/v1/synthesis-jobs;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
     proxy_set_header Host $host;
     proxy_set_header Origin $http_origin;
+    proxy_set_header Authorization $http_authorization;
     proxy_set_header X-Taigi-Extension-Id $http_x_taigi_extension_id;
     proxy_set_header X-Forwarded-Proto https;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -57,11 +84,13 @@ location ^~ /taigi-tts/v1/synthesis-jobs/ {
     limit_req zone=taigi_jobs burst=60 nodelay;
     limit_conn taigi_connections 8;
     client_max_body_size 1k;
+    access_log off;
     proxy_pass http://taigi_backend/v1/synthesis-jobs/;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
     proxy_set_header Host $host;
     proxy_set_header Origin $http_origin;
+    proxy_set_header Authorization $http_authorization;
     proxy_set_header X-Taigi-Extension-Id $http_x_taigi_extension_id;
     proxy_set_header X-Forwarded-Proto https;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
