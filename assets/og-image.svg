@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
   <title id="title">台語新聞朗讀社群分享圖</title>
-  <desc id="desc">深綠色台字對話框與橘色聲波，搭配台語新聞朗讀、長輩友善及非商用測試版文字</desc>
+  <desc id="desc">深綠色台字對話框與橘色聲波，搭配台語新聞朗讀、邀請制私人測試與可自行架設後端的文字</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#f8faf7"/>
@@ -26,18 +26,18 @@
     <text x="667.5" y="137" text-anchor="middle" font-size="21" font-weight="700" fill="#784900">Chrome 擴充套件・非商用測試版</text>
 
     <text x="510" y="245" font-size="72" font-weight="800" fill="#173b25">台語新聞朗讀</text>
-    <text x="513" y="306" font-size="31" font-weight="600" fill="#315b3b">新聞文字，確認後轉成台語播放</text>
+    <text x="513" y="306" font-size="31" font-weight="600" fill="#315b3b">私人測試，也能私有自架</text>
 
     <g font-size="22" font-weight="700" fill="#19482a">
-      <rect x="510" y="367" width="150" height="54" rx="27" fill="#ffffff" stroke="#97b79f" stroke-width="2"/>
-      <text x="585" y="402" text-anchor="middle">長輩友善</text>
-      <rect x="675" y="367" width="190" height="54" rx="27" fill="#ffffff" stroke="#97b79f" stroke-width="2"/>
-      <text x="770" y="402" text-anchor="middle">暫停・續播</text>
-      <rect x="880" y="367" width="176" height="54" rx="27" fill="#ffffff" stroke="#97b79f" stroke-width="2"/>
-      <text x="968" y="402" text-anchor="middle">本機重播</text>
+      <rect x="510" y="367" width="166" height="54" rx="27" fill="#ffffff" stroke="#97b79f" stroke-width="2"/>
+      <text x="593" y="402" text-anchor="middle">邀請制試用</text>
+      <rect x="691" y="367" width="176" height="54" rx="27" fill="#ffffff" stroke="#97b79f" stroke-width="2"/>
+      <text x="779" y="402" text-anchor="middle">自選翻譯</text>
+      <rect x="882" y="367" width="210" height="54" rx="27" fill="#ffffff" stroke="#97b79f" stroke-width="2"/>
+      <text x="987" y="402" text-anchor="middle">MMS 台語 TTS</text>
     </g>
 
-    <text x="513" y="491" font-size="23" fill="#405347">主動讀取、先預覽，再送到你選定的語音服務</text>
+    <text x="513" y="491" font-size="23" fill="#405347">API 金鑰只留後端・可用 Ollama 全本機</text>
     <text x="513" y="548" font-size="19" font-weight="600" fill="#52675a">yazelin.github.io/taigi-news-reader/</text>
   </g>
 </svg>
