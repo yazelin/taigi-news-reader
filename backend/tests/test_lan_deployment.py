@@ -28,6 +28,19 @@ def test_compose_keeps_uvicorn_off_host_ports_and_drops_privileges():
     assert "USER taigi" in dockerfile
 
 
+def test_local_mms_build_installs_cpu_torch_before_tts_extra():
+    dockerfile = (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+    cpu_index = "https://download.pytorch.org/whl/cpu"
+
+    cpu_install = dockerfile.index(cpu_index)
+    torch_requirement = dockerfile.index("'torch>=2.6,<3'", cpu_install)
+    tts_install = dockerfile.index("'.[tts]'", torch_requirement)
+
+    assert cpu_install < torch_requirement < tts_install
+    assert dockerfile.count(cpu_index) == 1
+    assert "--extra-index-url" not in dockerfile
+
+
 def test_lan_environment_is_fail_closed_and_contains_no_example_secret():
     environment = read("backend.env.example")
 

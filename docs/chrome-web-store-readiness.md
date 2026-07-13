@@ -36,7 +36,7 @@ Groq 官方說明指出 inference inputs／outputs 預設不保留，但 reliabi
 - `npm run release:check` 會重新 build，核對 manifest／version／permissions／CSP／icons／package references、secret／RHC signatures、symlink、source map 與 2 GB 上限。
 - `npm run package:store` 只把 `dist/` 內容放入 ZIP root，驗證 root `manifest.json`、拒絕多一層 `dist/` 或不安全 path，並輸出 SHA-256。官方 ZIP 上限是 2 GB；見 [Publish in the Chrome Web Store](https://developer.chrome.com/docs/webstore/publish/)。
 - `.github/workflows/store-package.yml` 只有手動 `workflow_dispatch`，執行 tests／lint／build／package 並上傳短期 artifact；它沒有 CWS token、登入、upload 或 publish 步驟。
-- Header fix 完成後的自動基線為 extension ESLint／production build／`71/71` tests，以及 backend `91 passed`；NGINX 1.29.3 `nginx -t` 亦通過。這只證明 repo contract，不代表上述 root endpoint 已部署。
+- Header fix 完成後的自動基線為 extension ESLint／production build／`71/71` tests，以及 backend `92 passed`；NGINX 1.29.3 `nginx -t` 亦通過。這只證明 repo contract，不代表上述 root endpoint 已部署。
 - Chromium `150.0.7871.46` isolated-profile strict mock E2E 已用 production `dist/` 的 test-only copy 通過 POST 202 → GET 200 → DELETE 204、offline START `cacheHit=true` 與 explicit REPLAY `cacheHit=true`。Test copy 只為繞過原生 prompt 額外授予 localhost host permission，正式 manifest 沒有 required host permissions；這項 LAN/mock 證據仍不能取代 production endpoint 與 CWS reviewer 測試。
 
 ## Broad optional host decision

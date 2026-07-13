@@ -11,6 +11,9 @@ COPY taigi_news_reader_backend ./taigi_news_reader_backend
 # Build with --build-arg INSTALL_LOCAL_MMS=1 for the local MMS provider.
 ARG INSTALL_LOCAL_MMS=0
 RUN if [ "$INSTALL_LOCAL_MMS" = "1" ]; then \
+      python -m pip install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cpu \
+        'torch>=2.6,<3' && \
       python -m pip install --no-cache-dir '.[tts]'; \
     else \
       python -m pip install --no-cache-dir .; \

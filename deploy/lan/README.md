@@ -137,15 +137,19 @@ docker compose --env-file lan.env -f compose.yaml up -d backend
 docker compose --env-file lan.env -f compose.yaml ps
 docker compose --env-file lan.env -f compose.yaml exec backend \
   python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3).read().decode())"
+docker compose --env-file lan.env -f compose.yaml exec backend \
+  python -c "import torch; assert torch.version.cuda is None; print(torch.__version__)"
 docker run --rm --network taigi_news_reader_edge \
   -v "$PWD/nginx:/config:ro" nginx:1.29.3-alpine \
   nginx -t -c /config/nginx.conf.test
 ```
 
 image 以非 root `taigi` user 執行；container root filesystem 為 read-only，
-模型 cache 是唯一持久 volume。第一次 MMS request 仍可能下載大型模型並需要
-足夠 RAM／disk；先在維護時段完成。若改用 remote TTS，把 build arg 設為 0，
-並依 backend provider contract 使用 HTTPS endpoint。
+模型 cache 是唯一持久 volume。`INSTALL_LOCAL_MMS=1` 會先從 PyTorch 官方 CPU
+wheel index 安裝 CPU-only Torch，再安裝 `.[tts]` 並重用該版本；上面的 assertion
+必須通過，不能讓 CPU host image 帶 CUDA runtime。第一次 MMS request 仍可能
+下載大型模型並需要足夠 RAM／disk；先在維護時段完成。若改用 remote TTS，把
+build arg 設為 0，並依 backend provider contract 使用 HTTPS endpoint。
 
 ## 4. 納入既有 nginx TLS server
 
