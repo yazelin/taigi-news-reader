@@ -152,3 +152,40 @@ def test_extension_ids_are_validated_and_escaped():
     assert not re.fullmatch(regex, f"chrome-extension://{'b' * 32}")
     with pytest.raises(ValueError, match="invalid Chrome extension ID"):
         Settings(extension_ids=("not-an-id",))
+
+
+def test_strict_extension_validation_requires_a_pinned_extension_id():
+    with pytest.raises(ValueError, match="requires at least one Chrome extension ID"):
+        Settings(require_allowed_origin=True)
+
+    extension_id = "a" * 32
+    settings = Settings(
+        extension_ids=(extension_id,),
+        allow_localhost_origins=False,
+        require_allowed_origin=True,
+    )
+
+    assert settings.extension_request_is_allowed(extension_id)
+    assert settings.extension_request_is_allowed(
+        extension_id, f"chrome-extension://{extension_id}"
+    )
+    assert not settings.extension_request_is_allowed("b" * 32)
+    assert not settings.extension_request_is_allowed(
+        extension_id, f"chrome-extension://{'b' * 32}"
+    )
+    assert settings.origin_is_allowed(f"chrome-extension://{extension_id}")
+    assert not settings.origin_is_allowed(f"chrome-extension://{'b' * 32}")
+    assert not settings.origin_is_allowed("http://localhost:5173")
+
+
+def test_strict_extension_validation_loads_from_environment(monkeypatch):
+    extension_id = "a" * 32
+    monkeypatch.setenv("TAIGI_EXTENSION_IDS", extension_id)
+    monkeypatch.setenv("TAIGI_ALLOW_LOCALHOST_ORIGINS", "false")
+    monkeypatch.setenv("TAIGI_REQUIRE_ALLOWED_ORIGIN", "true")
+
+    settings = Settings.from_env()
+
+    assert settings.extension_ids == (extension_id,)
+    assert settings.allow_localhost_origins is False
+    assert settings.require_allowed_origin is True

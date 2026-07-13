@@ -1,7 +1,7 @@
 const statuses = new Set(["idle", "preparing", "playing", "paused", "stopped", "completed", "error"]);
 
 function initialState() {
-  return { status: "idle", index: 0, total: 0, title: "", error: "", rate: 1 };
+  return { status: "idle", index: 0, total: 0, title: "", error: "", rate: 1, replayId: "" };
 }
 
 function reducePlayerState(state, event) {
@@ -22,7 +22,9 @@ function reducePlayerState(state, event) {
     case "STOP":
       return { ...next, status: "stopped" };
     case "COMPLETE":
-      return { ...next, status: "completed", index: state.total };
+      return { ...next, status: "completed", index: state.total, replayId: event.replayId || "" };
+    case "FORGET_REPLAY":
+      return { ...next, replayId: "" };
     case "ERROR":
       return { ...next, status: "error", error: event.error || "發生未知錯誤" };
     case "CLEAR":
@@ -33,7 +35,8 @@ function reducePlayerState(state, event) {
 }
 
 function validateState(state) {
-  return statuses.has(state.status) && state.index >= 0 && state.index <= state.total;
+  return statuses.has(state.status) && state.index >= 0 && state.index <= state.total &&
+    (state.replayId === undefined || typeof state.replayId === "string");
 }
 
 module.exports = { initialState, reducePlayerState, validateState };

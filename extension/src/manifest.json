@@ -2,8 +2,14 @@
   "manifest_version": 3,
   "name": "台語新聞朗讀",
   "version": "0.1.0",
-  "description": "把目前新聞頁面的繁體中文轉成自然台語並朗讀。",
+  "description": "把你確認的繁體中文新聞文字送到已設定的台語語音服務，並在 Chrome 播放。",
   "minimum_chrome_version": "116",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "permissions": [
     "activeTab",
     "scripting",
@@ -20,7 +26,11 @@
     "service_worker": "service_worker.js"
   },
   "action": {
-    "default_title": "開啟台語新聞朗讀"
+    "default_title": "開啟台語新聞朗讀",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
   },
   "side_panel": {
     "default_path": "sidepanel.html"

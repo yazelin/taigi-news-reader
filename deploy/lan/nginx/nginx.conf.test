@@ -1,0 +1,17 @@
+# Syntax harness for the two include files. This does not replace the target's
+# real nginx.conf or test its certificate paths.
+worker_processes 1;
+
+events {
+    worker_connections 64;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    include /config/00-taigi-http.conf.example;
+
+    server {
+        listen 8080;
+        include /config/taigi-locations.inc;
+    }
+}

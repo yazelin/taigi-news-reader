@@ -1,4 +1,5 @@
 const SETTINGS_KEY = "taigiSettings";
+const RECOMMENDED_BACKEND_URL = "https://ching-tech.ddns.net/taigi-tts";
 
 function normalizeBackendUrl(value) {
   const trimmed = String(value || "").trim().replace(/\/+$/, "");
@@ -30,4 +31,10 @@ function endpoint(backendUrl, path) {
   return `${normalizeBackendUrl(backendUrl)}${path}`;
 }
 
-module.exports = { SETTINGS_KEY, normalizeBackendUrl, originPermission, endpoint };
+module.exports = {
+  RECOMMENDED_BACKEND_URL,
+  SETTINGS_KEY,
+  normalizeBackendUrl,
+  originPermission,
+  endpoint
+};

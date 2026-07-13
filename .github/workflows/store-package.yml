@@ -1,0 +1,39 @@
+name: Chrome Web Store package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build reviewed ZIP only
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run checks and build store ZIP
+        run: npm run package:store
+
+      - name: Upload review artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-web-store-package
+          path: extension/release/*.zip
+          if-no-files-found: error
+          retention-days: 7

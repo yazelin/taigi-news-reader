@@ -59,11 +59,25 @@
     <section id="playerCard" class="card player" hidden>
       <h2>播放控制</h2>
       <p id="progress" class="progress">準備中…</p>
+      <p id="replayService" class="service-disclosure" hidden></p>
       <div class="controls">
         <button id="pauseButton" type="button">暫停</button>
         <button id="resumeButton" type="button">繼續</button>
         <button id="stopButton" class="danger" type="button">停止</button>
+        <button id="replayButton" class="primary" type="button" hidden>重新播放</button>
       </div>
+    </section>
+
+    <section class="card history-card">
+      <h2>重播記錄</h2>
+      <label class="history-toggle" for="replayEnabled">
+        <input id="replayEnabled" type="checkbox">
+        <span>在這台電腦保留朗讀音訊</span>
+      </label>
+      <p class="muted privacy-note">預設關閉。開啟後最多保留最近 5 篇、50 MiB、7 天；不保存新聞全文、網址或 API key，也不會同步到其他裝置。</p>
+      <p id="historyEmpty" class="muted">尚未開啟本機重播記錄。</p>
+      <ul id="historyList" class="history-list" aria-label="最近朗讀記錄" hidden></ul>
+      <button id="clearHistoryButton" class="secondary full" type="button" hidden>清除所有重播記錄</button>
     </section>
 
     <button id="clearButton" class="secondary full" type="button">清除本次內容</button>

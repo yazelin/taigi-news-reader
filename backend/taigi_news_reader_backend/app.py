@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Response, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .config import Settings
 from .jobs import JobCapacityError, JobManager, UNEXPECTED_JOB_ERROR
@@ -107,9 +108,37 @@ def create_app(
         allow_origin_regex=settings.cors_origin_regex(),
         allow_credentials=False,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-Taigi-Extension-Id"],
         max_age=600,
     )
+
+    if settings.require_allowed_origin:
+
+        @application.middleware("http")
+        async def require_allowed_extension(request: Request, call_next):
+            if request.url.path.startswith("/v1/"):
+                origin = request.headers.get("origin")
+                is_preflight = (
+                    request.method == "OPTIONS"
+                    and "access-control-request-method" in request.headers
+                )
+                if is_preflight:
+                    allowed = bool(origin) and settings.origin_is_allowed(origin)
+                else:
+                    extension_id = request.headers.get(
+                        "x-taigi-extension-id", ""
+                    )
+                    allowed = settings.extension_request_is_allowed(
+                        extension_id, origin
+                    )
+                if not allowed:
+                    return JSONResponse(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        content={
+                            "detail": "request extension identity is not allowed"
+                        },
+                    )
+            return await call_next(request)
 
     @application.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:

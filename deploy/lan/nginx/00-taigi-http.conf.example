@@ -1,0 +1,41 @@
+# Include this once inside nginx's `http` context. Replace every placeholder
+# with the exact stable ID shown by chrome://extensions. For each additional
+# allowed ID, add one origin line and both matching identity lines.
+map_hash_bucket_size 128;
+map $http_origin $taigi_extension_origin_allowed {
+    default 0;
+    "chrome-extension://REPLACE_WITH_32_CHARACTER_EXTENSION_ID" 1;
+}
+
+map "$http_x_taigi_extension_id|$http_origin" $taigi_extension_identity_allowed {
+    default 0;
+    "REPLACE_WITH_32_CHARACTER_EXTENSION_ID|" 1;
+    "REPLACE_WITH_32_CHARACTER_EXTENSION_ID|chrome-extension://REPLACE_WITH_32_CHARACTER_EXTENSION_ID" 1;
+}
+
+# A CORS preflight has a trusted Origin but cannot carry the custom identity
+# header it is asking permission to use. Actual GET/POST/DELETE requests must
+# match an identity entry above; when Origin is present, it must match that ID.
+map "$request_method|$taigi_extension_identity_allowed|$taigi_extension_origin_allowed" $taigi_extension_request_allowed {
+    default 0;
+    ~^OPTIONS\|[01]\|1$ 1;
+    ~^(?:GET|POST|DELETE)\|1\|[01]$ 1;
+}
+
+# One extension polls at roughly 1 request/second. These bounds leave room for
+# the backend's four-job cap while limiting accidental or abusive LAN traffic.
+limit_req_zone $binary_remote_addr zone=taigi_health:1m rate=30r/m;
+limit_req_zone $binary_remote_addr zone=taigi_create:1m rate=12r/m;
+limit_req_zone $binary_remote_addr zone=taigi_jobs:1m rate=300r/m;
+limit_conn_zone $binary_remote_addr zone=taigi_connections:1m;
+limit_req_status 429;
+
+# nginx 1.27.3+ can re-resolve a changing Docker container address without a
+# reload. 127.0.0.11 is Docker's embedded DNS on a custom network.
+upstream taigi_backend {
+    zone taigi_backend 64k;
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    resolver_timeout 2s;
+    server taigi-news-reader:8765 resolve;
+    keepalive 8;
+}

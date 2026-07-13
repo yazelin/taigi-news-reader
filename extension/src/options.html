@@ -16,14 +16,17 @@
       <input id="backendUrl" type="url" inputmode="url" placeholder="https://tts.example.com" autocomplete="url">
       <p class="hint">正式服務必須使用 HTTPS。本機開發可用 <code>http://127.0.0.1:8765</code> 或 <code>http://localhost:8765</code>。</p>
       <div class="actions">
-        <button id="saveButton" class="primary" type="button">儲存並測試連線</button>
+        <button id="recommendedButton" type="button">使用建議的非商用服務</button>
+        <button id="saveButton" class="primary" type="button">同意並儲存、測試</button>
         <button id="clearButton" type="button">清除設定</button>
       </div>
       <div id="status" role="status" aria-live="polite" hidden></div>
     </section>
     <section class="privacy">
       <h2>權限與隱私</h2>
-      <p>儲存時，Chrome 只會詢問你是否允許連線到上方指定的服務網域。本擴充套件不會要求讀取所有網站的永久權限。</p>
+      <p><strong>按下儲存即表示你同意：</strong>只有在你主動要求朗讀時，擴充套件才會把你選取或擷取的新聞純文字送到上方服務，轉成台語並產生語音。它不會送出 Cookie、登入資訊、完整 HTML 或新聞網址。</p>
+      <p>建議服務會把新聞文字交給 Groq 做國語轉台語，再由伺服器上的台語 TTS 產生音訊；不使用 Gemini 免費額度。Chrome 只會詢問是否允許連線到你指定的服務網域；本擴充套件不會要求永久讀取所有網站。</p>
+      <p><a href="https://github.com/yazelin/taigi-news-reader/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">查看完整隱私政策</a></p>
     </section>
   </main>
   <script src="options.js"></script>

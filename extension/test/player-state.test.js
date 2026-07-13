@@ -16,11 +16,18 @@ test("follows the normal playback lifecycle", () => {
 });
 
 test("clear restores an empty session", () => {
-  const playing = { status: "playing", index: 1, total: 2, title: "新聞", error: "", rate: 1.25 };
+  const playing = { status: "playing", index: 1, total: 2, title: "新聞", error: "", rate: 1.25, replayId: "" };
   assert.deepEqual(reducePlayerState(playing, { type: "CLEAR" }), initialState());
 });
 
 test("pause is ignored unless audio is playing", () => {
   const state = initialState();
   assert.equal(reducePlayerState(state, { type: "PAUSE" }), state);
+});
+
+test("completed playback exposes only its opaque replay id and can forget it", () => {
+  const started = reducePlayerState(initialState(), { type: "START", total: 1, title: "新聞", rate: 1 });
+  const completed = reducePlayerState(started, { type: "COMPLETE", replayId: "opaque-cache-id" });
+  assert.equal(completed.replayId, "opaque-cache-id");
+  assert.equal(reducePlayerState(completed, { type: "FORGET_REPLAY" }).replayId, "");
 });

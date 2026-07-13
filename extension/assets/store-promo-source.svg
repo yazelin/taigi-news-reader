@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 280" role="img" aria-labelledby="title desc">
+  <title id="title">台語新聞朗讀 Chrome 擴充套件宣傳圖</title>
+  <desc id="desc">綠色台字朗讀圖示，搭配台語新聞朗讀與新聞文字一鍵轉成台語朗讀文字</desc>
+  <rect width="440" height="280" fill="#f4f7f3"/>
+  <circle cx="405" cy="30" r="80" fill="#e6f0e8"/>
+  <circle cx="28" cy="260" r="90" fill="#fff0c6"/>
+  <g transform="translate(28 48) scale(.36)">
+    <rect x="16" y="16" width="480" height="480" rx="112" fill="#155b2c"/>
+    <path d="M92 112c0-29 23-52 52-52h224c29 0 52 23 52 52v205c0 29-23 52-52 52H237l-92 77 21-77h-22c-29 0-52-23-52-52z" fill="#fffdf4"/>
+    <text x="236" y="313" text-anchor="middle" font-family="Noto Sans CJK TC, Noto Sans TC, sans-serif" font-size="230" font-weight="800" fill="#155b2c">台</text>
+    <path d="M374 171c25 24 25 64 0 88M407 140c43 42 43 108 0 150" fill="none" stroke="#f4a300" stroke-width="22" stroke-linecap="round"/>
+  </g>
+  <text x="224" y="91" font-family="Noto Sans CJK TC, Noto Sans TC, sans-serif" font-size="31" font-weight="800" fill="#173b25">台語新聞朗讀</text>
+  <text x="224" y="128" font-family="Noto Sans CJK TC, Noto Sans TC, sans-serif" font-size="16" font-weight="600" fill="#405347">新聞文字，一鍵轉成台語朗讀</text>
+  <rect x="224" y="153" width="143" height="38" rx="19" fill="#fff0c6" stroke="#a26400" stroke-width="2"/>
+  <text x="295.5" y="179" text-anchor="middle" font-family="Noto Sans CJK TC, Noto Sans TC, sans-serif" font-size="16" font-weight="700" fill="#784900">非商用測試版</text>
+  <text x="224" y="226" font-family="Noto Sans CJK TC, Noto Sans TC, sans-serif" font-size="14" fill="#405347">支援暫停、續播與本機重播記錄</text>
+</svg>

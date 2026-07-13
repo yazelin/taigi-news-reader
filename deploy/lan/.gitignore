@@ -1,0 +1,6 @@
+backend.env
+lan.env
+secrets/
+*.crt
+*.key
+

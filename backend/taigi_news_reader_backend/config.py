@@ -76,6 +76,7 @@ class Settings:
     max_translated_chars: int = 12_000
     extension_ids: tuple[str, ...] = ()
     allow_localhost_origins: bool = True
+    require_allowed_origin: bool = False
 
     def __post_init__(self) -> None:
         if self.provider_mode not in {"concrete", "mock"}:
@@ -101,6 +102,10 @@ class Settings:
         for extension_id in self.extension_ids:
             if not re.fullmatch(r"[a-p]{32}", extension_id):
                 raise ValueError(f"invalid Chrome extension ID: {extension_id!r}")
+        if self.require_allowed_origin and not self.extension_ids:
+            raise ValueError(
+                "strict extension validation requires at least one Chrome extension ID"
+            )
         if self.provider_mode == "concrete":
             if self.translator_provider == "openai_compatible":
                 if not self.openai_base_url or not self.openai_model or not self.openai_api_key:
@@ -198,6 +203,9 @@ class Settings:
             allow_localhost_origins=_get_bool(
                 "TAIGI_ALLOW_LOCALHOST_ORIGINS", True
             ),
+            require_allowed_origin=_get_bool(
+                "TAIGI_REQUIRE_ALLOWED_ORIGIN", False
+            ),
         )
 
     def cors_origin_regex(self) -> str:
@@ -209,3 +217,17 @@ class Settings:
         if self.allow_localhost_origins:
             origins.append(r"https?://(?:localhost|127\.0\.0\.1)(?::\d+)?")
         return r"^(?:" + "|".join(origins) + r")$"
+
+    def origin_is_allowed(self, origin: str) -> bool:
+        return re.fullmatch(self.cors_origin_regex(), origin) is not None
+
+    def extension_request_is_allowed(
+        self, extension_id: str, origin: str | None = None
+    ) -> bool:
+        if extension_id not in self.extension_ids:
+            return False
+        if not origin:
+            return True
+        if origin.startswith("chrome-extension://"):
+            return origin == f"chrome-extension://{extension_id}"
+        return self.origin_is_allowed(origin)

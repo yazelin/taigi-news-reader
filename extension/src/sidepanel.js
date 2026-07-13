@@ -1,15 +1,24 @@
 const { chunkText, normalizeText } = require("./lib/chunk");
 const { SETTINGS_KEY, endpoint, originPermission } = require("./lib/settings");
 const { initialState } = require("./lib/player-state");
+const { describeService } = require("./lib/backend-identity");
+const { createBackendFetch } = require("./lib/backend-fetch");
+
+const backendFetch = createBackendFetch({
+  fetchImpl: (...args) => fetch(...args),
+  extensionId: chrome.runtime.id
+});
 
 const elements = Object.fromEntries([
   "message", "setupCard", "setupButton", "settingsButton", "extractButton", "previewCard", "title",
   "sourceChooser", "preview", "textStats", "rate", "startButton", "playerCard", "progress",
-  "pauseButton", "resumeButton", "stopButton", "clearButton"
+  "pauseButton", "resumeButton", "stopButton", "replayButton", "replayService", "replayEnabled", "historyEmpty",
+  "historyList", "clearHistoryButton", "clearButton"
 ].map((id) => [id, document.getElementById(id)]));
 
 let extraction = null;
 let playbackState = initialState();
+let replayHistory = [];
 
 function showMessage(text, kind = "error") {
   elements.message.textContent = text;
@@ -42,7 +51,7 @@ async function checkBackend() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 4500);
     try {
-      const response = await fetch(endpoint(settings.backendUrl, "/health"), { signal: controller.signal });
+      const response = await backendFetch(endpoint(settings.backendUrl, "/health"), { signal: controller.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
     } finally {
       clearTimeout(timer);
@@ -104,7 +113,6 @@ async function extractCurrentPage() {
 
 async function startReading() {
   showMessage("");
-  if (!(await checkBackend())) return;
   const text = normalizeText(elements.preview.value);
   const chunks = chunkText(text);
   if (!chunks.length) {
@@ -127,6 +135,147 @@ async function startReading() {
   }
 }
 
+function formatBytes(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KiB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+function historyItem(entry) {
+  const item = document.createElement("li");
+  item.className = "history-item";
+
+  const details = document.createElement("div");
+  details.className = "history-details";
+  const title = document.createElement("strong");
+  title.textContent = entry.title;
+  const service = document.createElement("span");
+  service.className = `service-badge${entry.service?.mode === "mock" ? " mock" : ""}`;
+  service.textContent = describeService(entry.service);
+  const metadata = document.createElement("span");
+  metadata.className = "muted";
+  metadata.textContent = `${new Date(entry.lastPlayedAt).toLocaleString("zh-TW")}・${entry.rate} 倍・${formatBytes(entry.bytes)}`;
+  details.append(title, service, metadata);
+
+  const actions = document.createElement("div");
+  actions.className = "history-actions";
+  const replay = document.createElement("button");
+  replay.type = "button";
+  replay.className = "primary";
+  replay.dataset.action = "replay";
+  replay.dataset.id = entry.id;
+  replay.textContent = "重播";
+  replay.setAttribute("aria-label", `重播：${entry.title}`);
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "secondary";
+  remove.dataset.action = "delete";
+  remove.dataset.id = entry.id;
+  remove.textContent = "刪除";
+  remove.setAttribute("aria-label", `刪除重播記錄：${entry.title}`);
+  actions.append(replay, remove);
+  item.append(details, actions);
+  return item;
+}
+
+function renderHistory(enabled, history = []) {
+  replayHistory = history;
+  elements.replayEnabled.checked = enabled;
+  elements.historyList.replaceChildren(...history.map(historyItem));
+  elements.historyList.hidden = !enabled || history.length === 0;
+  elements.clearHistoryButton.hidden = !enabled || history.length === 0;
+  elements.historyEmpty.hidden = enabled && history.length > 0;
+  elements.historyEmpty.textContent = enabled
+    ? "還沒有可重播的新聞；完整朗讀一篇後會顯示在這裡。"
+    : "尚未開啟本機重播記錄。";
+  renderReplayService();
+}
+
+function renderReplayService() {
+  const entry = replayHistory.find(({ id }) => id === playbackState.replayId);
+  const visible = playbackState.status === "completed" && Boolean(entry);
+  elements.replayService.hidden = !visible;
+  if (!visible) return;
+  elements.replayService.className = `service-disclosure${entry.service?.mode === "mock" ? " mock" : ""}`;
+  elements.replayService.textContent = `語音來源：${describeService(entry.service)}`;
+}
+
+async function sendCommand(type, payload = {}) {
+  const response = await chrome.runtime.sendMessage({ target: "service-worker", type, ...payload });
+  if (!response?.ok) throw new Error(response?.error || "操作失敗。");
+  return response;
+}
+
+async function loadReplayHistory() {
+  try {
+    const response = await sendCommand("GET_REPLAY_HISTORY");
+    renderHistory(response.enabled, response.history);
+    if (response.warning) showMessage(response.warning);
+  } catch (error) {
+    showMessage(error.message);
+  }
+}
+
+async function setReplayEnabled() {
+  const enabled = elements.replayEnabled.checked;
+  if (!enabled && !window.confirm("關閉後會立即刪除這台電腦上的所有重播音訊。確定要關閉嗎？")) {
+    elements.replayEnabled.checked = true;
+    return;
+  }
+  elements.replayEnabled.disabled = true;
+  try {
+    const response = await sendCommand("SET_REPLAY_ENABLED", { enabled });
+    renderHistory(response.enabled, response.history);
+    showMessage(response.warning || (enabled
+      ? "已開啟本機重播記錄；下一篇完整朗讀後即可免 API 重播。"
+      : "已關閉並刪除所有本機重播記錄。"), "info");
+  } catch (error) {
+    showMessage(error.message);
+    await loadReplayHistory();
+  } finally {
+    elements.replayEnabled.disabled = false;
+  }
+}
+
+async function replayEntry(id) {
+  showMessage("");
+  try {
+    await sendCommand("REPLAY", { id });
+  } catch (error) {
+    showMessage(error.message);
+    await loadReplayHistory();
+  }
+}
+
+async function handleHistoryAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  button.disabled = true;
+  try {
+    if (button.dataset.action === "replay") {
+      await replayEntry(button.dataset.id);
+    } else if (button.dataset.action === "delete") {
+      const response = await sendCommand("DELETE_REPLAY", { id: button.dataset.id });
+      renderHistory(true, response.history);
+      showMessage("已刪除這筆重播記錄。", "info");
+    }
+  } catch (error) {
+    showMessage(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function clearReplayHistory() {
+  if (!window.confirm("確定要刪除這台電腦上的所有重播音訊嗎？")) return;
+  try {
+    await sendCommand("CLEAR_REPLAY_HISTORY");
+    renderHistory(true, []);
+    showMessage("已清除所有本機重播記錄。", "info");
+  } catch (error) {
+    showMessage(error.message);
+  }
+}
+
 function renderPlayer(state) {
   playbackState = state || initialState();
   const active = !["idle", "stopped"].includes(playbackState.status);
@@ -135,6 +284,12 @@ function renderPlayer(state) {
   elements.pauseButton.disabled = playbackState.status !== "playing";
   elements.resumeButton.disabled = playbackState.status !== "paused";
   elements.stopButton.disabled = !["preparing", "playing", "paused"].includes(playbackState.status);
+  const completed = playbackState.status === "completed";
+  elements.pauseButton.hidden = completed;
+  elements.resumeButton.hidden = completed;
+  elements.stopButton.hidden = completed;
+  elements.replayButton.hidden = !completed || !playbackState.replayId;
+  renderReplayService();
 
   const labels = {
     preparing: "正在準備語音…",
@@ -148,8 +303,11 @@ function renderPlayer(state) {
 }
 
 async function command(type) {
-  const response = await chrome.runtime.sendMessage({ target: "service-worker", type });
-  if (!response?.ok) showMessage(response?.error || "操作失敗。");
+  try {
+    await sendCommand(type);
+  } catch (error) {
+    showMessage(error.message);
+  }
 }
 
 async function clearSession() {
@@ -167,6 +325,10 @@ elements.startButton.addEventListener("click", startReading);
 elements.pauseButton.addEventListener("click", () => command("PAUSE"));
 elements.resumeButton.addEventListener("click", () => command("RESUME"));
 elements.stopButton.addEventListener("click", () => command("STOP"));
+elements.replayButton.addEventListener("click", () => replayEntry(playbackState.replayId));
+elements.replayEnabled.addEventListener("change", setReplayEnabled);
+elements.historyList.addEventListener("click", handleHistoryAction);
+elements.clearHistoryButton.addEventListener("click", clearReplayHistory);
 elements.clearButton.addEventListener("click", clearSession);
 elements.setupButton.addEventListener("click", () => chrome.runtime.openOptionsPage());
 elements.settingsButton.addEventListener("click", () => chrome.runtime.openOptionsPage());
@@ -175,6 +337,8 @@ elements.sourceChooser.addEventListener("change", updatePreview);
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message.target === "sidepanel" && message.type === "STATE") renderPlayer(message.state);
+  if (message.target === "sidepanel" && message.type === "NOTICE") showMessage(message.message, "info");
+  if (message.target === "sidepanel" && message.type === "HISTORY_CHANGED") loadReplayHistory();
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -182,4 +346,5 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.storage.session.get("playbackState").then(({ playbackState: stored }) => renderPlayer(stored || initialState()));
+loadReplayHistory();
 checkBackend();

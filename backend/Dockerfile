@@ -14,7 +14,15 @@ RUN if [ "$INSTALL_LOCAL_MMS" = "1" ]; then \
       python -m pip install --no-cache-dir '.[tts]'; \
     else \
       python -m pip install --no-cache-dir .; \
-    fi
+    fi && \
+    groupadd --system taigi && \
+    useradd --system --gid taigi --create-home taigi && \
+    mkdir -p /var/cache/taigi && \
+    chown -R taigi:taigi /var/cache/taigi
+
+ENV HF_HOME=/var/cache/taigi/huggingface
+
+USER taigi
 
 EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

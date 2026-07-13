@@ -1,6 +1,19 @@
-const { SETTINGS_KEY, normalizeBackendUrl, originPermission, endpoint } = require("./lib/settings");
+const {
+  RECOMMENDED_BACKEND_URL,
+  SETTINGS_KEY,
+  normalizeBackendUrl,
+  originPermission,
+  endpoint
+} = require("./lib/settings");
+const { createBackendFetch } = require("./lib/backend-fetch");
+
+const backendFetch = createBackendFetch({
+  fetchImpl: (...args) => fetch(...args),
+  extensionId: chrome.runtime.id
+});
 
 const input = document.getElementById("backendUrl");
+const recommendedButton = document.getElementById("recommendedButton");
 const saveButton = document.getElementById("saveButton");
 const clearButton = document.getElementById("clearButton");
 const status = document.getElementById("status");
@@ -15,7 +28,7 @@ async function healthCheck(backendUrl) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
   try {
-    const response = await fetch(endpoint(backendUrl, "/health"), { signal: controller.signal });
+    const response = await backendFetch(endpoint(backendUrl, "/health"), { signal: controller.signal });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
   } finally {
     clearTimeout(timer);
@@ -65,6 +78,10 @@ async function clear() {
 }
 
 saveButton.addEventListener("click", save);
+recommendedButton.addEventListener("click", () => {
+  input.value = RECOMMENDED_BACKEND_URL;
+  return save();
+});
 clearButton.addEventListener("click", clear);
 
 chrome.storage.local.get(SETTINGS_KEY).then((result) => {

@@ -57,12 +57,14 @@ test("session-safe playback state omits the article title", () => {
     total: 1,
     title: "不應保存的新聞標題",
     error: "",
-    rate: 0.8
+    rate: 0.8,
+    replayId: "opaque-cache-id"
   }), {
     status: "playing",
     index: 0,
     total: 1,
     error: "",
-    rate: 0.8
+    rate: 0.8,
+    replayId: "opaque-cache-id"
   });
 });

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">台語新聞朗讀圖示</title>
+  <desc id="desc">綠色圓角底上的台字對話框與橘色聲波</desc>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#155b2c"/>
+  <path d="M92 112c0-29 23-52 52-52h224c29 0 52 23 52 52v205c0 29-23 52-52 52H237l-92 77 21-77h-22c-29 0-52-23-52-52z" fill="#fffdf4"/>
+  <text x="236" y="313" text-anchor="middle" font-family="Noto Sans CJK TC, Noto Sans TC, sans-serif" font-size="230" font-weight="800" fill="#155b2c">台</text>
+  <path d="M374 171c25 24 25 64 0 88M407 140c43 42 43 108 0 150" fill="none" stroke="#f4a300" stroke-width="22" stroke-linecap="round"/>
+</svg>

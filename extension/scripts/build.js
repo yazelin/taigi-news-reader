@@ -8,6 +8,7 @@ const destination = path.join(root, "dist");
 
 fs.rmSync(destination, { recursive: true, force: true });
 fs.mkdirSync(destination, { recursive: true });
+fs.cpSync(path.join(source, "icons"), path.join(destination, "icons"), { recursive: true });
 
 for (const file of [
   "manifest.json",

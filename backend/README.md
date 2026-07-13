@@ -98,6 +98,26 @@ The first real request downloads the Hugging Face checkpoint. To exercise the
 API without Ollama or a model download, explicitly set
 `TAIGI_PROVIDER_MODE=mock`; mock responses identify themselves as such.
 
+## Secure LAN deployment
+
+The target-specific Docker and nginx preparation is in
+[`deploy/lan/README.md`](../deploy/lan/README.md). It publishes no backend host
+port: the non-root, read-only backend joins a dedicated external edge network
+shared only with nginx, and nginx reaches it by a private network alias. The
+HTTPS edge pins the exact Chrome extension identity header and cross-checks
+Origin when Chrome sends one, restricts the source LAN, rate-limits job creation
+and polling separately, and does not expose the retained direct
+`POST /v1/synthesize` route.
+
+Set `TAIGI_REQUIRE_ALLOWED_ORIGIN=true`, pin at least one exact
+`TAIGI_EXTENSION_IDS` value, and disable localhost origins for that deployment.
+Strict mode requires every actual `/v1/` request to send the pinned ID in
+`X-Taigi-Extension-Id`. A supplied Origin must also be allowed and must match
+that ID; CORS preflight is validated by its Origin because browsers do not send
+the requested custom header until preflight succeeds. This remains defense in
+depth rather than authentication because a non-browser client can forge both
+headers.
+
 ## Test
 
 Tests use injected deterministic providers and never download the MMS model:
@@ -107,4 +127,4 @@ python -m pip install -e '.[dev]'
 python -m pytest -q
 ```
 
-Current backend result: `81 passed`.
+Current backend result: `91 passed`.

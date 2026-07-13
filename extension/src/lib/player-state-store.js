@@ -37,7 +37,8 @@ function persistablePlayerState(state) {
     index: state.index,
     total: state.total,
     error: state.error,
-    rate: state.rate
+    rate: state.rate,
+    replayId: state.replayId || ""
   };
 }
 

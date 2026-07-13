@@ -173,6 +173,141 @@ async def test_cors_can_pin_one_extension_id(request_body):
     assert "access-control-allow-origin" not in denied.headers
 
 
+async def test_strict_mode_requires_pinned_extension_header(request_body):
+    allowed_id = "a" * 32
+    app = create_app(
+        Settings(
+            provider_mode="mock",
+            extension_ids=(allowed_id,),
+            allow_localhost_origins=False,
+            require_allowed_origin=True,
+        )
+    )
+
+    missing = await make_request(
+        app,
+        "POST",
+        "/v1/synthesize",
+        json=request_body,
+        headers={"Origin": f"chrome-extension://{allowed_id}"},
+    )
+    wrong = await make_request(
+        app,
+        "POST",
+        "/v1/synthesize",
+        json=request_body,
+        headers={"X-Taigi-Extension-Id": "b" * 32},
+    )
+    allowed = await make_request(
+        app,
+        "POST",
+        "/v1/synthesize",
+        json=request_body,
+        headers={"X-Taigi-Extension-Id": allowed_id},
+    )
+    health = await make_request(app, "GET", "/health")
+
+    assert missing.status_code == 403
+    assert missing.json() == {
+        "detail": "request extension identity is not allowed"
+    }
+    assert wrong.status_code == 403
+    assert allowed.status_code == 200
+    assert health.status_code == 200
+
+
+async def test_strict_mode_allows_header_only_job_poll(request_body):
+    allowed_id = "a" * 32
+    identity = {"X-Taigi-Extension-Id": allowed_id}
+    app = create_app(
+        Settings(
+            provider_mode="mock",
+            extension_ids=(allowed_id,),
+            allow_localhost_origins=False,
+            require_allowed_origin=True,
+        )
+    )
+
+    created = await make_request(
+        app,
+        "POST",
+        "/v1/synthesis-jobs",
+        json=request_body,
+        headers={
+            **identity,
+            "Origin": f"chrome-extension://{allowed_id}",
+        },
+    )
+    assert created.status_code == 202
+
+    polled = await make_request(
+        app,
+        "GET",
+        f"/v1/synthesis-jobs/{created.json()['job_id']}",
+        headers=identity,
+    )
+
+    assert polled.status_code == 200
+
+
+async def test_strict_mode_rejects_origin_mismatch_even_with_allowed_header(
+    request_body,
+):
+    allowed_ids = ("a" * 32, "b" * 32)
+    app = create_app(
+        Settings(
+            provider_mode="mock",
+            extension_ids=allowed_ids,
+            allow_localhost_origins=False,
+            require_allowed_origin=True,
+        )
+    )
+
+    response = await make_request(
+        app,
+        "POST",
+        "/v1/synthesis-jobs",
+        json=request_body,
+        headers={
+            "X-Taigi-Extension-Id": allowed_ids[0],
+            "Origin": f"chrome-extension://{allowed_ids[1]}",
+        },
+    )
+
+    assert response.status_code == 403
+
+
+async def test_strict_mode_allows_pinned_preflight():
+    allowed_id = "a" * 32
+    app = create_app(
+        Settings(
+            provider_mode="mock",
+            extension_ids=(allowed_id,),
+            allow_localhost_origins=False,
+            require_allowed_origin=True,
+        )
+    )
+
+    response = await make_request(
+        app,
+        "OPTIONS",
+        "/v1/synthesis-jobs",
+        headers={
+            "Origin": f"chrome-extension://{allowed_id}",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": (
+                "content-type,x-taigi-extension-id"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"].endswith(allowed_id)
+    assert "x-taigi-extension-id" in response.headers[
+        "access-control-allow-headers"
+    ].lower()
+
+
 class FailingTranslator:
     name = "failing"
 

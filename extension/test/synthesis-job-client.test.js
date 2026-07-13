@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { createSynthesisJobClient } = require("../src/lib/synthesis-job-client");
+const { EXTENSION_CLIENT_ID_HEADER, createBackendFetch } = require("../src/lib/backend-fetch");
 
 function endpointFor(base, route) {
   return `${base}${route}`;
@@ -69,13 +70,17 @@ test("creates, polls, parses, and deletes a completed synthesis job", async () =
     response(204)
   ];
   const delays = [];
-  const client = createSynthesisJobClient({
-    endpointFor,
-    delay: async (milliseconds) => { delays.push(milliseconds); },
+  const fetchImpl = createBackendFetch({
+    extensionId: "abcdefghijklmnopabcdefghijklmnop",
     async fetchImpl(url, options) {
       requests.push({ url, options });
       return replies.shift();
     }
+  });
+  const client = createSynthesisJobClient({
+    endpointFor,
+    delay: async (milliseconds) => { delays.push(milliseconds); },
+    fetchImpl
   });
 
   const result = await client.synthesize({
@@ -100,6 +105,10 @@ test("creates, polls, parses, and deletes a completed synthesis job", async () =
     ["GET", "https://tts.example/v1/synthesis-jobs/job%20one"],
     ["DELETE", "https://tts.example/v1/synthesis-jobs/job%20one"]
   ]);
+  for (const { options } of requests) {
+    assert.equal(options.headers.get(EXTENSION_CLIENT_ID_HEADER), "abcdefghijklmnopabcdefghijklmnop");
+  }
+  assert.equal(requests[0].options.headers.get("Content-Type"), "application/json");
   assert.deepEqual(delays, [1_000]);
   assert.deepEqual(created, [{ jobId: "job one", backendUrl: "https://tts.example", token: 7 }]);
   assert.deepEqual(cleared, created);

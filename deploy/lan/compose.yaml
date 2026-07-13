@@ -1,0 +1,45 @@
+name: taigi-news-reader-lan
+
+services:
+  backend:
+    image: taigi-news-reader-backend:lan
+    build:
+      context: ../../backend
+      args:
+        INSTALL_LOCAL_MMS: "${TAIGI_INSTALL_LOCAL_MMS:-1}"
+    env_file:
+      - "${TAIGI_BACKEND_ENV_FILE:-./backend.env}"
+    # No host port is published. Only the existing nginx container should join
+    # this dedicated external edge network alongside the backend.
+    expose:
+      - "8765"
+    networks:
+      taigi_news_reader_edge:
+        aliases:
+          - taigi-news-reader
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    volumes:
+      - model-cache:/var/cache/taigi
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    pids_limit: 512
+    restart: unless-stopped
+    stop_grace_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  model-cache:
+
+networks:
+  taigi_news_reader_edge:
+    external: true
+    name: taigi_news_reader_edge

@@ -31,10 +31,10 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 ## 一般使用方式：營運方託管後端
 
-本 repo 目前**不附可直接給一般使用者使用的公共服務網址**。正式發佈前，營運方必須：
+擴充套件目前內建的建議 URL 是 `https://ching-tech.ddns.net/taigi-tts`，但它在完成本 repo 的部署、安全與 release gates 前，**不是可直接給一般公網使用者使用的公共服務**。開發包預設仍不會自動選用它；使用者必須在設定頁主動按下建議服務或自行輸入可信任 URL。正式發佈前，營運方必須：
 
 1. 部署 HTTPS 後端，設定真正支援台語且授權符合非商用用途的 translator / TTS providers；目前可在 server 使用 MMS reference。
-2. 設定允許的 extension origin、請求上限、速率限制與隱私／保存政策。
+2. 固定允許的 extension ID，對 `/v1/` 檢查 `X-Taigi-Extension-Id` 與存在時的 Origin，並設定網路 allowlist、請求上限、速率限制與隱私／保存政策。
 3. 透過 Chrome Web Store 或組織管理方式發佈擴充套件，並提供使用者可辨識的正式服務 URL。
 
 一般使用者安裝後，在設定頁填入營運方提供的 HTTPS URL；之後開啟新聞、選取文字或讓套件擷取正文，再按朗讀即可。若未設定後端或後端無法連線，套件必須明確提示設定／服務問題，不得默默改接不明遠端服務或華語 voice。
@@ -56,7 +56,10 @@ TAIGI_REMOTE_TTS_API_KEY=replace-me
 
 TAIGI_EXTENSION_IDS=abcdefghijklmnopabcdefghijklmnop
 TAIGI_ALLOW_LOCALHOST_ORIGINS=false
+TAIGI_REQUIRE_ALLOWED_ORIGIN=true
 ```
+
+擴充套件對 `/health`、job POST、每次 GET poll 與 DELETE 都會帶 `X-Taigi-Extension-Id: chrome.runtime.id`。Chrome 的部分簡單 GET 可能不帶 Origin，因此 strict backend 以固定 header 為 `/v1/` 必要條件，Origin 存在時再核對同一 ID；CORS preflight 仍以 exact extension Origin 協商。Extension ID header 與 Origin 都是公開且可被非瀏覽器偽造的識別，不是 API key 或 authentication。LAN deployment 仍須依賴 subnet allowlist、HTTPS、每 IP rate／connection limit、request size 與 active-job cap；公網服務另需真正 authentication／abuse controls。
 
 remote TTS endpoint 接收 `{"text":"...","language":"nan-TW","rate":1.0}`，回傳 `{"audio_base64":"...","mime_type":"audio/wav"}`。若供應商 API 不同，應在後端新增 adapter 或部署轉接服務，不能把金鑰或轉接邏輯塞進擴充套件。
 
@@ -151,6 +154,22 @@ uvicorn taigi_news_reader_backend.app:app --host 127.0.0.1 --port 8765
 
 手動驗收步驟與台語品質檢查表見 [docs/manual-test.md](docs/manual-test.md)。
 
+## 本機重播記錄（選用）
+
+側邊欄的「在這台電腦保留朗讀音訊」**預設關閉**。只有使用者主動開啟後，完整朗讀完一篇新聞，Chrome 才會保存本機重播資料；STOP、錯誤、取消或未完成的 queue 都不會留下 partial history。儲存失敗也不會讓當次播放失敗，只會清楚提示本次未保存。
+
+重播資料有三道上限，任一超過都依 least-recently-used（LRU）順序移除舊項目：
+
+- 最多 5 篇。
+- 音訊合計最多 50 MiB；單篇超過 50 MiB 仍可播放，但不保存。
+- 每筆從最後播放時間起最多 7 天。
+
+本機重播在 `chrome.storage.local` 使用 `taigiReplayPreferences`、`taigiReplayHistory` 與 `taigiReplayBackendIdentity`（使用者選定的服務網址另由既有 `taigiSettings` 管理）。history 每筆只有 `id`、標題、建立／最後播放時間、語速、段數、音訊 bytes，以及經過長度限制的 `service.mode/translator/synthesizer`；不保存新聞全文、台語翻譯、來源 URL、raw backend URL 或 API key。`taigiReplayBackendIdentity` 只在 opt-in 開啟時保存目前 backend URL、由 `/health` 的 mode／translator／synthesizer 組成的 canonical identity、同一組 sanitized service labels 與檢查時間，不含新聞內容；關閉功能或啟動時發現功能未開啟就會清除。
+
+Cache schema v2 的 `id` 是以 normalized 文字 chunks、語速、目前 backend URL 與上述 provider fingerprint 計算的 SHA-256 hash，原始輸入不會放進 metadata。START 先以目前 URL 加上 stored identity 查 cache，命中時完全不打 `/health` 或 synthesis；miss 才 probe `/health`，同一 URL 背後更換 translator／synthesizer 會得到新 fingerprint 並 miss。Backend 暫時離線時可退回 stored identity；若從未取得可驗證 identity，仍可嘗試當次 synthesis，但不保存成可重播 cache。音訊各段以 ArrayBuffer 存在 extension-origin IndexedDB `taigi-news-reader-replay` 的 `audioEntries` store，不使用 `unlimitedStorage`，也不會同步到其他裝置。
+
+同一組 chunks、語速、backend URL 與 provider fingerprint 再次 START，或從「重播記錄」按重播時，命中 cache 便直接交給 offscreen 播放，不再呼叫 synthesis API。History 會顯示服務 identity；mock 必須明確標成「測試音訊（不是台語 TTS）」。若同一 cache key 已有 history metadata，但音訊遺失或損毀，無論再次 START 或從 history 重播都會以 `REPLAY_CACHE_CORRUPT` 明確失敗、移除壞項目，而且 synthesis request 為零，**不會偷偷重新上傳新聞**；只有尚無對應 metadata 的新 START 才依使用者這次確認的內容走正常 synthesis。每筆可單獨刪除，也可一鍵清除全部；storage 刪除失敗會回報 UI，不會顯示假成功。關閉此功能會在確認後立即刪除所有 history metadata、backend identity 與 cached audio。「清除本次內容」不等於清除重播記錄。
+
 ## 隱私與資料流
 
 擴充套件只應在使用者操作後擷取選取文字或文章純文字，不送整頁 HTML、cookie 或瀏覽紀錄。實際資料去向取決於設定的後端：
@@ -158,7 +177,9 @@ uvicorn taigi_news_reader_backend.app:app --host 127.0.0.1 --port 8765
 - **正式託管**：文字離開使用者裝置，送到設定頁顯示的營運方 HTTPS 後端；若後端再呼叫 provider，營運方必須揭露目的地、保存期、是否用於訓練及刪除方式。
 - **開發／本機自架**：文字送到 `127.0.0.1`，Ollama 與 MMS 在本機處理，音訊回到 Chrome 播放。
 
-專案不應預設把新聞內容、生成音訊或分析事件寫入磁碟。非同步 job 全部只存在單一 backend process 的記憶體：原文只活在 active synthesis task 的參數中，從不放入 job registry；合成完成或失敗滿 600 秒後，下一次 job API 操作會清除過期 terminal result，而 Chrome 正常取得結果後會立即 `DELETE`。process 關閉時也會取消 active jobs 並清空記憶體。
+預設關閉本機重播時，擴充套件不持久保存新聞文字或生成音訊；只有上述 explicit opt-in 才會在 Chrome profile 保存 bounded title metadata 與 audio。這份 browser-local cache 和後端 job 是兩個不同生命週期：非同步 job 全部只存在單一 backend process 的記憶體，原文只活在 active synthesis task 的參數中，從不放入 job registry 或磁碟；合成完成或失敗滿 600 秒後，下一次 job API 操作會清除過期 terminal result，而 Chrome 正常取得結果後會立即 `DELETE`。process 關閉時也會取消 active jobs 並清空記憶體。
+
+本機重播 metadata 只開放給 extension trusted contexts；一般新聞頁與 content script 不應讀到它。它仍是使用者 Chrome profile 中的本機資料，標題與音訊可能透露閱讀內容，不應視為加密保管。使用者可逐筆刪除、清除全部或關閉功能立即刪除；瀏覽器／作業系統層級的 profile 存取風險仍由裝置安全負責。
 
 本機模型第一次下載時會連到模型發佈平台；這與合成時上傳新聞內容不同。設定頁必須讓使用者看得出目前服務 URL，未設定時不得猜測或自動選擇服務。若託管後端使用 Gemini API Free tier，新聞文字可能被用於改善 Google 產品；部署者須在啟用前揭露並重新核對當時條款。
 

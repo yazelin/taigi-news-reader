@@ -14,6 +14,7 @@ venv/
 node_modules/
 coverage/
 dist/
+extension/release/
 
 # Local models, generated audio, and caches
 .cache/
@@ -33,4 +34,3 @@ models/
 Thumbs.db
 .idea/
 .vscode/
-

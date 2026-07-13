@@ -40,4 +40,16 @@ fieldset { margin: 13px 0; border: 2px solid #879389; border-radius: 9px; }
 .progress { padding: 12px; background: #e9f2eb; border-radius: 9px; font-weight: 800; }
 .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .controls button { padding-inline: 5px; }
+.history-toggle { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.history-toggle input { width: 28px; min-height: 28px; flex: 0 0 auto; }
+.privacy-note { padding: 10px; border-left: 5px solid #285580; background: #edf6ff; }
+.history-list { display: grid; gap: 10px; padding: 0; margin: 14px 0; list-style: none; }
+.history-item { padding: 12px; border: 2px solid #b7c5ba; border-radius: 10px; background: #f8faf8; }
+.history-details { display: grid; gap: 4px; overflow-wrap: anywhere; }
+.history-details strong { line-height: 1.4; }
+.service-badge { width: fit-content; padding: 3px 8px; border-radius: 999px; background: #e9f2eb; color: #19482a; font-size: .82rem; font-weight: 800; }
+.service-badge.mock, .service-disclosure.mock { border: 2px solid #9a4d00; background: #fff3cf; color: #713800; }
+.service-disclosure { padding: 10px; border-left: 5px solid #315b3b; background: #eef6f0; font-weight: 800; }
+.history-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.history-actions button { min-height: 44px; }
 [hidden] { display: none !important; }
