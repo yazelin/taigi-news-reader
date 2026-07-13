@@ -1,3 +1,4 @@
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -6,6 +7,7 @@ const sourceManifestPath = path.join(root, "src", "manifest.json");
 const dist = path.join(root, "dist");
 const distManifestPath = path.join(dist, "manifest.json");
 const packagePath = path.join(root, "package.json");
+const packageLockPath = path.join(root, "package-lock.json");
 
 const errors = [];
 const warnings = [];
@@ -28,6 +30,28 @@ function validVersion(version) {
   const parts = version.split(".");
   return parts.length >= 1 && parts.length <= 4 && parts.every((part) =>
     /^(0|[1-9]\d*)$/.test(part) && Number(part) <= 65535);
+}
+
+function extensionIdFromManifestKey(value) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
+    throw new Error("manifest key 必須是無換行的 Base64 SPKI public key");
+  }
+  const der = Buffer.from(value, "base64");
+  if (!der.length || der.toString("base64") !== value) {
+    throw new Error("manifest key 必須是 canonical Base64");
+  }
+  const publicKey = crypto.createPublicKey({ key: der, format: "der", type: "spki" });
+  if (publicKey.asymmetricKeyType !== "rsa") {
+    throw new Error("manifest key 必須是 RSA public key");
+  }
+  const canonicalDer = publicKey.export({ format: "der", type: "spki" });
+  if (!canonicalDer.equals(der)) {
+    throw new Error("manifest key 必須是 canonical SPKI DER");
+  }
+  const prefix = crypto.createHash("sha256").update(der).digest("hex").slice(0, 32);
+  return [...prefix]
+    .map((nibble) => String.fromCharCode("a".charCodeAt(0) + Number.parseInt(nibble, 16)))
+    .join("");
 }
 
 function walk(directory) {
@@ -75,6 +99,14 @@ function checkPngIcon(value, label, size) {
 const sourceManifest = readJson(sourceManifestPath);
 const manifest = readJson(distManifestPath);
 const packageJson = readJson(packagePath);
+const packageLock = readJson(packageLockPath);
+
+let derivedCwsItemId = null;
+try {
+  derivedCwsItemId = extensionIdFromManifestKey(manifest.key);
+} catch (error) {
+  errors.push(`manifest key 無法推導 Chrome extension ID：${error.message}`);
+}
 
 requireCondition(fs.existsSync(dist), "缺少 dist；請先執行 npm run build");
 requireCondition(manifest.manifest_version === 3, "Chrome Web Store package 必須使用 Manifest V3");
@@ -84,7 +116,13 @@ requireCondition(typeof manifest.description === "string" && manifest.descriptio
   "manifest description 必須為 1–132 字元");
 requireCondition(validVersion(manifest.version), "manifest version 必須是 1–4 段、每段 0–65535 的整數");
 requireCondition(manifest.version === packageJson.version, "manifest.json 與 package.json version 必須一致");
+requireCondition(packageLock.version === packageJson.version, "package-lock.json root version 必須與 package.json 一致");
+requireCondition(packageLock.packages?.[""]?.version === packageJson.version,
+  "package-lock.json packages root version 必須與 package.json 一致");
 requireCondition(JSON.stringify(manifest) === JSON.stringify(sourceManifest), "dist/manifest.json 必須與 src/manifest.json 完全一致");
+requireCondition(/^[a-p]{32}$/.test(packageJson.cwsItemId || ""), "package.json cwsItemId 必須是 32 字元 Chrome Item ID");
+requireCondition(derivedCwsItemId === packageJson.cwsItemId,
+  `manifest key 推導的 ID ${derivedCwsItemId || "<invalid>"} 與 cwsItemId ${packageJson.cwsItemId || "<missing>"} 不一致`);
 
 const requiredPermissions = ["activeTab", "scripting", "sidePanel", "offscreen", "storage"];
 const permissions = Array.isArray(manifest.permissions) ? manifest.permissions : [];
@@ -176,5 +214,6 @@ if (errors.length) {
   process.exitCode = 1;
 } else {
   console.log(`Chrome Web Store package audit passed: ${files.length} files, ${totalBytes} bytes, version ${manifest.version}.`);
+  console.log(`CWS Item ID verified from manifest public key: ${derivedCwsItemId}.`);
   console.log("Dashboard listing, privacy policy URL, screenshots, promo image, reviewer backend, and account checks remain manual release gates.");
 }
