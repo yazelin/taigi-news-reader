@@ -41,6 +41,7 @@ def strict_settings(database: Path, **overrides) -> Settings:
     values = {
         "provider_mode": "mock",
         "require_access_token": True,
+        "allow_direct_synthesis": False,
         "access_token_hashes": (
             token_hash("tester-a", TOKEN_A),
             token_hash("tester-b", TOKEN_B),
@@ -216,6 +217,21 @@ async def test_access_endpoint_validates_token_and_returns_subject_quota_status(
     app.state.quota_store.close()
 
 
+async def test_strict_private_access_never_registers_direct_synthesis(tmp_path):
+    app = create_app(strict_settings(tmp_path / "quota.sqlite"))
+
+    response = await request(
+        app,
+        "POST",
+        "/v1/synthesize",
+        headers=auth(TOKEN_A),
+        json=REQUEST,
+    )
+
+    assert response.status_code == 404
+    app.state.quota_store.close()
+
+
 async def test_cors_preflight_allows_authorization_and_401_is_readable(tmp_path):
     extension_id = "a" * 32
     settings = strict_settings(
@@ -292,7 +308,7 @@ async def test_per_subject_job_quota_is_atomic_and_returns_utc_retry_info(tmp_pa
     app.state.quota_store.close()
 
 
-async def test_character_quota_counts_stripped_unicode_text_on_both_endpoints(
+async def test_character_quota_counts_stripped_unicode_text_for_jobs(
     tmp_path,
 ):
     app = create_app(
@@ -304,10 +320,10 @@ async def test_character_quota_counts_stripped_unicode_text_on_both_endpoints(
     first = {**REQUEST, "text": "  台語  "}
     second = {**REQUEST, "text": "新聞朗讀測試"}
 
-    direct = await request(
+    accepted = await request(
         app,
         "POST",
-        "/v1/synthesize",
+        "/v1/synthesis-jobs",
         headers=auth(TOKEN_A),
         json=first,
     )
@@ -319,7 +335,7 @@ async def test_character_quota_counts_stripped_unicode_text_on_both_endpoints(
         json=second,
     )
 
-    assert direct.status_code == 200
+    assert accepted.status_code == 202
     assert rejected.status_code == 429
     assert rejected.headers["x-ratelimit-scope"] == "subject_characters"
     status = await request(app, "GET", "/v1/access", headers=auth(TOKEN_A))
@@ -394,19 +410,19 @@ async def test_global_character_quota_combines_distinct_subjects(tmp_path):
     first = await request(
         app,
         "POST",
-        "/v1/synthesize",
+        "/v1/synthesis-jobs",
         headers=auth(TOKEN_A),
         json=six_characters,
     )
     second = await request(
         app,
         "POST",
-        "/v1/synthesize",
+        "/v1/synthesis-jobs",
         headers=auth(TOKEN_B),
         json=five_characters,
     )
 
-    assert first.status_code == 200
+    assert first.status_code == 202
     assert second.status_code == 429
     assert second.headers["x-ratelimit-scope"] == "global_characters"
     app.state.quota_store.close()
@@ -426,11 +442,13 @@ class NeverFinishingService:
     def __init__(self) -> None:
         self.started = asyncio.Event()
         self.cancelled = asyncio.Event()
+        self.release = asyncio.Event()
 
     async def synthesize(self, text: str, rate: float):
         self.started.set()
         try:
-            await asyncio.Future()
+            await self.release.wait()
+            return None
         except asyncio.CancelledError:
             self.cancelled.set()
             raise
@@ -462,6 +480,7 @@ async def test_failed_accepted_job_is_not_refunded(tmp_path):
         )
         if failed.status_code == 200 and failed.json()["status"] == "failed":
             break
+        await asyncio.sleep(0)
     else:
         raise AssertionError("job never failed")
 
@@ -478,10 +497,11 @@ async def test_failed_accepted_job_is_not_refunded(tmp_path):
     app.state.quota_store.close()
 
 
-async def test_cancelled_accepted_job_is_not_refunded(tmp_path):
+async def test_deleted_accepted_job_is_not_refunded_after_provider_drains(tmp_path):
     settings = strict_settings(
         tmp_path / "quota.sqlite",
         daily_subject_job_limit=1,
+        max_active_jobs=1,
     )
     service = NeverFinishingService()
     app = create_app(settings, service=service)
@@ -499,7 +519,23 @@ async def test_cancelled_accepted_job_is_not_refunded(tmp_path):
         f"/v1/synthesis-jobs/{created.json()['job_id']}",
         headers=auth(TOKEN_A),
     )
-    await asyncio.wait_for(service.cancelled.wait(), timeout=1)
+    assert service.cancelled.is_set() is False
+    still_active = await request(
+        app,
+        "POST",
+        "/v1/synthesis-jobs",
+        headers=auth(TOKEN_A),
+        json=REQUEST,
+    )
+    assert still_active.status_code == 429
+    assert still_active.headers["x-ratelimit-scope"] == "active_jobs"
+
+    service.release.set()
+    job_id = created.json()["job_id"]
+    for _ in range(100):
+        if app.state.job_manager._jobs[job_id].status != "pending":
+            break
+        await asyncio.sleep(0)
     rejected = await request(
         app,
         "POST",

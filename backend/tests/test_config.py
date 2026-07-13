@@ -198,6 +198,7 @@ def test_strict_access_authentication_requires_hashed_tokens_only():
     digest = "a" * 64
     settings = Settings(
         require_access_token=True,
+        allow_direct_synthesis=False,
         access_token_hashes=(
             AccessTokenHash(subject="reviewer-01", sha256=digest),
         ),
@@ -232,6 +233,7 @@ def test_access_token_subjects_and_hashes_must_be_unique():
 
 def test_access_and_quota_configuration_loads_from_environment(monkeypatch):
     monkeypatch.setenv("TAIGI_REQUIRE_ACCESS_TOKEN", "true")
+    monkeypatch.setenv("TAIGI_ALLOW_DIRECT_SYNTHESIS", "false")
     monkeypatch.setenv(
         "TAIGI_ACCESS_TOKEN_HASHES",
         f"reviewer-01={'a' * 64},tester-02={'b' * 64}",
@@ -257,6 +259,7 @@ def test_access_and_quota_configuration_loads_from_environment(monkeypatch):
         "tester-02",
     ]
     assert settings.quota_database_path == "/tmp/quota.sqlite"
+    assert settings.allow_direct_synthesis is False
     assert settings.daily_subject_job_limit == 7
     assert settings.daily_subject_character_limit == 8000
     assert settings.daily_global_job_limit == 30
@@ -291,3 +294,15 @@ def test_access_and_quota_configuration_loads_from_environment(monkeypatch):
 def test_access_capacity_configuration_rejects_unsafe_bounds(overrides, message):
     with pytest.raises(ValueError, match=message):
         Settings(**overrides)
+
+
+def test_strict_access_requires_direct_synthesis_to_be_explicitly_disabled():
+    entry = AccessTokenHash(subject="tester-a", sha256="a" * 64)
+
+    with pytest.raises(ValueError, match="direct synthesis to be disabled"):
+        Settings(
+            require_access_token=True,
+            access_token_hashes=(entry,),
+        )
+
+    assert Settings().allow_direct_synthesis is True

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import time
 from typing import Callable, Literal
 import uuid
@@ -28,6 +28,11 @@ class JobView:
     status: JobStatus
     result: SynthesizeResponse | None = None
     error: str | None = None
+    delivery_lease: object | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
 
 
 @dataclass(slots=True)
@@ -42,7 +47,16 @@ class _JobRecord:
     error: str | None = None
     terminal_at: float | None = None
     delivered: bool = False
+    # DELETE hides an active job immediately, but deliberately does not cancel
+    # its provider coroutine. Some local inference providers run blocking work
+    # in a thread, and cancelling the asyncio wrapper cannot stop that thread.
+    # Keeping the record pending until the provider really returns prevents a
+    # create/delete loop from manufacturing new active capacity.
+    discarded: bool = False
     retained_bytes: int = 0
+    delivery_lease: object | None = None
+    delivery_lease_started_at: float | None = None
+    delete_requested: bool = False
 
 
 class JobManager:
@@ -103,9 +117,16 @@ class JobManager:
             active = sum(job.status == "pending" for job in self._jobs.values())
             if active >= self._max_active_jobs:
                 raise JobCapacityError("too many active synthesis jobs")
-            if len(self._jobs) >= self._max_outstanding_jobs:
+            outstanding = sum(
+                self._counts_as_outstanding(job)
+                for job in self._jobs.values()
+            )
+            if outstanding >= self._max_outstanding_jobs:
                 raise JobCapacityError("too many outstanding synthesis jobs")
-            owned = sum(job.owner == owner for job in self._jobs.values())
+            owned = sum(
+                job.owner == owner and self._counts_as_outstanding(job)
+                for job in self._jobs.values()
+            )
             if owned >= self._max_outstanding_jobs_per_owner:
                 raise JobCapacityError(
                     "too many outstanding synthesis jobs for this subject"
@@ -139,24 +160,53 @@ class JobManager:
             if (
                 record is None
                 or record.delivered
+                or record.discarded
                 or (owner is not None and record.owner != owner)
             ):
                 return None
-            view = JobView(
+            delivery_lease: object | None = None
+            if consume_terminal and record.status != "pending":
+                # Claim a one-shot delivery, but keep the payload and its byte
+                # accounting until the ASGI response actually finishes. The
+                # response BackgroundTask releases this opaque lease.
+                delivery_lease = object()
+                record.delivered = True
+                record.delivery_lease = delivery_lease
+                record.delivery_lease_started_at = self._clock()
+            return JobView(
                 job_id=record.job_id,
                 status=record.status,
                 result=record.result,
                 error=record.error,
+                delivery_lease=delivery_lease,
             )
-            if consume_terminal and record.status != "pending":
-                # A terminal result is a one-shot delivery. Keep only a small
-                # tombstone so the extension's follow-up DELETE can succeed;
-                # repeated GET cannot amplify large WAV egress or retained RAM.
-                record.delivered = True
-                record.result = None
-                record.error = None
-                record.retained_bytes = 0
-            return view
+
+    async def release_delivery(
+        self,
+        job_id: str,
+        delivery_lease: object,
+        *,
+        owner: str | None = None,
+    ) -> bool:
+        """Release a terminal payload after its one ASGI response is sent."""
+
+        async with self._lock:
+            self._prune_terminal_locked()
+            record = self._jobs.get(job_id)
+            if (
+                record is None
+                or record.delivery_lease is not delivery_lease
+                or (owner is not None and record.owner != owner)
+            ):
+                return False
+            record.result = None
+            record.error = None
+            record.retained_bytes = 0
+            record.delivery_lease = None
+            record.delivery_lease_started_at = None
+            if record.delete_requested:
+                del self._jobs[job_id]
+            return True
 
     async def delete(self, job_id: str, *, owner: str | None = None) -> bool:
         async with self._lock:
@@ -164,10 +214,24 @@ class JobManager:
             record = self._jobs.get(job_id)
             if record is None or (owner is not None and record.owner != owner):
                 return False
+            if record.discarded:
+                # Preserve a bounded receipt tombstone after provider work
+                # drains so same-owner retries remain idempotent.
+                return True
+            if record.status == "pending":
+                # A blocking inference thread cannot be force-cancelled by
+                # asyncio. Hide the job from its owner, but keep its active and
+                # outstanding capacity charged until _run actually finishes.
+                # Repeated DELETE remains idempotent while that work drains.
+                record.discarded = True
+                return True
+            if record.delivery_lease is not None:
+                # The response still owns the only payload lease. A concurrent
+                # DELETE hides/acknowledges now, but the bytes remain charged
+                # until release_delivery runs after the body send.
+                record.delete_requested = True
+                return True
             del self._jobs[job_id]
-        if record.task is not None and not record.task.done():
-            record.task.cancel()
-            await asyncio.gather(record.task, return_exceptions=True)
         return True
 
     async def shutdown(self) -> None:
@@ -212,6 +276,17 @@ class JobManager:
         async with self._lock:
             record = self._jobs.get(job_id)
             if record is None:
+                return
+            if record.discarded:
+                # DELETE already acknowledged this job. Release its capacity
+                # only now, after the provider coroutine has genuinely ended,
+                # and retain neither its result nor its error.
+                record.status = "failed"
+                record.result = None
+                record.error = None
+                record.retained_bytes = 0
+                record.terminal_at = self._clock()
+                record.task = None
                 return
             if result is not None:
                 result_bytes = self._retained_result_bytes(result)
@@ -258,12 +333,22 @@ class JobManager:
             if candidate not in self._jobs:
                 return candidate
 
+    @staticmethod
+    def _counts_as_outstanding(record: _JobRecord) -> bool:
+        # A discarded pending job still owns real provider capacity. Once its
+        # provider coroutine ends, only a small idempotency receipt remains.
+        return not (record.discarded and record.status != "pending")
+
     def _prune_terminal_locked(self) -> None:
         cutoff = self._clock() - self._terminal_ttl_seconds
-        expired = [
-            job_id
-            for job_id, record in self._jobs.items()
-            if record.terminal_at is not None and record.terminal_at <= cutoff
-        ]
+        expired: list[str] = []
+        for job_id, record in self._jobs.items():
+            if record.terminal_at is None or record.terminal_at > cutoff:
+                continue
+            if record.delivery_lease is not None:
+                lease_started = record.delivery_lease_started_at
+                if lease_started is not None and lease_started > cutoff:
+                    continue
+            expired.append(job_id)
         for job_id in expired:
             del self._jobs[job_id]

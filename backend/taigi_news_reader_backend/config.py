@@ -112,6 +112,7 @@ class Settings:
     allow_localhost_origins: bool = True
     require_allowed_origin: bool = False
     require_access_token: bool = False
+    allow_direct_synthesis: bool = True
     access_token_hashes: tuple[AccessTokenHash, ...] = field(
         default=(),
         repr=False,
@@ -165,6 +166,10 @@ class Settings:
         if self.require_access_token and not self.access_token_hashes:
             raise ValueError(
                 "strict access-token authentication requires at least one configured hash"
+            )
+        if self.require_access_token and self.allow_direct_synthesis:
+            raise ValueError(
+                "strict access-token authentication requires direct synthesis to be disabled"
             )
         if not self.quota_database_path.strip():
             raise ValueError("quota_database_path must not be blank")
@@ -297,6 +302,9 @@ class Settings:
             ),
             require_access_token=_get_bool(
                 "TAIGI_REQUIRE_ACCESS_TOKEN", False
+            ),
+            allow_direct_synthesis=_get_bool(
+                "TAIGI_ALLOW_DIRECT_SYNTHESIS", True
             ),
             access_token_hashes=_get_access_token_hashes(),
             quota_database_path=os.getenv(

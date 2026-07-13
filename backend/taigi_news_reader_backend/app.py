@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .access import (
     DailyQuotaStore,
@@ -42,6 +44,83 @@ from .providers import (
 from .service import SynthesisService
 
 
+class RequestSecurityMiddleware:
+    """Pure-ASGI identity/auth checks that do not buffer response bodies."""
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        settings: Settings,
+        authenticator: TokenAuthenticator | None,
+    ) -> None:
+        self.app = app
+        self.settings = settings
+        self.authenticator = authenticator
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        if scope["type"] != "http" or not scope["path"].startswith("/v1/"):
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
+        if self.settings.require_allowed_origin:
+            origin = request.headers.get("origin")
+            extension_id = request.headers.get("x-taigi-extension-id", "")
+            if not self.settings.extension_request_is_allowed(extension_id, origin):
+                response = JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={
+                        "detail": "request extension identity is not allowed"
+                    },
+                )
+                await response(scope, receive, send)
+                return
+
+        if request.method != "OPTIONS":
+            subject = OPEN_ACCESS_SUBJECT
+            if self.authenticator is not None:
+                subject = self.authenticator.authenticate(
+                    request.headers.get("authorization")
+                )
+                if subject is None:
+                    response = JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={"detail": "access credential is not accepted"},
+                        headers={
+                            "WWW-Authenticate": 'Bearer realm="taigi-news-reader"',
+                            "Cache-Control": "no-store",
+                        },
+                    )
+                    await response(scope, receive, send)
+                    return
+            scope.setdefault("state", {})["access_subject"] = subject
+        await self.app(scope, receive, send)
+
+
+class FinalizingJSONResponse(JSONResponse):
+    """Run a response BackgroundTask after send success or transport failure."""
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        background = self.background
+        self.background = None
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            if background is not None:
+                await background()
+
+
 def build_service(settings: Settings) -> SynthesisService:
     if settings.provider_mode == "mock":
         return SynthesisService(MockTranslator(), MockTtsSynthesizer())
@@ -74,6 +153,7 @@ def build_service(settings: Settings) -> SynthesisService:
             model_name=settings.mms_model,
             device=settings.mms_device,
             timeout_seconds=settings.mms_timeout_seconds,
+            max_audio_bytes=settings.max_audio_bytes,
         )
     else:
         synthesizer = RemoteTtsSynthesizer(
@@ -139,53 +219,11 @@ def create_app(
     application.state.quota_store = quota_store
     application.state.token_authenticator = authenticator
 
-    @application.middleware("http")
-    async def require_access_credential(request: Request, call_next):
-        if request.url.path.startswith("/v1/") and request.method != "OPTIONS":
-            subject = OPEN_ACCESS_SUBJECT
-            if authenticator is not None:
-                subject = authenticator.authenticate(
-                    request.headers.get("authorization")
-                )
-                if subject is None:
-                    return JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={"detail": "access credential is not accepted"},
-                        headers={
-                            "WWW-Authenticate": 'Bearer realm="taigi-news-reader"',
-                            "Cache-Control": "no-store",
-                        },
-                    )
-            request.state.access_subject = subject
-        return await call_next(request)
-
-    if settings.require_allowed_origin:
-
-        @application.middleware("http")
-        async def require_allowed_extension(request: Request, call_next):
-            if request.url.path.startswith("/v1/"):
-                origin = request.headers.get("origin")
-                is_preflight = (
-                    request.method == "OPTIONS"
-                    and "access-control-request-method" in request.headers
-                )
-                if is_preflight:
-                    allowed = bool(origin) and settings.origin_is_allowed(origin)
-                else:
-                    extension_id = request.headers.get(
-                        "x-taigi-extension-id", ""
-                    )
-                    allowed = settings.extension_request_is_allowed(
-                        extension_id, origin
-                    )
-                if not allowed:
-                    return JSONResponse(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        content={
-                            "detail": "request extension identity is not allowed"
-                        },
-                    )
-            return await call_next(request)
+    application.add_middleware(
+        RequestSecurityMiddleware,
+        settings=settings,
+        authenticator=authenticator,
+    )
 
     # Register CORS after security middleware so it is the outermost layer.
     # This lets Chrome read generic 401/403 responses while CORS itself handles
@@ -226,25 +264,27 @@ def create_app(
         snapshot = quota_store.status(access_subject(http_request))
         return access_response(snapshot)
 
-    @application.post("/v1/synthesize", response_model=SynthesizeResponse)
-    async def synthesize(
-        request: SynthesizeRequest,
-        http_request: Request,
-    ) -> SynthesizeResponse:
-        enforce_text_limit(request)
-        if quota_store is not None:
-            reserve_quota(
-                quota_store,
-                access_subject(http_request),
-                len(request.text),
-            )
-        try:
-            return await service.synthesize(request.text, request.rate)
-        except ProviderError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=str(exc),
-            ) from exc
+    if settings.allow_direct_synthesis:
+
+        @application.post("/v1/synthesize", response_model=SynthesizeResponse)
+        async def synthesize(
+            request: SynthesizeRequest,
+            http_request: Request,
+        ) -> SynthesizeResponse:
+            enforce_text_limit(request)
+            if quota_store is not None:
+                reserve_quota(
+                    quota_store,
+                    access_subject(http_request),
+                    len(request.text),
+                )
+            try:
+                return await service.synthesize(request.text, request.rate)
+            except ProviderError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=str(exc),
+                ) from exc
 
     @application.post(
         "/v1/synthesis-jobs",
@@ -290,10 +330,11 @@ def create_app(
     async def get_synthesis_job(
         job_id: str,
         http_request: Request,
-    ) -> SynthesisJobResponse:
+    ) -> SynthesisJobResponse | Response:
+        owner = access_subject(http_request)
         job = await job_manager.get(
             job_id,
-            owner=access_subject(http_request),
+            owner=owner,
             consume_terminal=True,
         )
         if job is None:
@@ -301,10 +342,24 @@ def create_app(
         if job.status == "pending":
             return SynthesisJobPending(job_id=job.job_id)
         if job.status == "completed" and job.result is not None:
-            return SynthesisJobCompleted(job_id=job.job_id, result=job.result)
-        return SynthesisJobFailed(
-            job_id=job.job_id,
-            error=job.error or UNEXPECTED_JOB_ERROR,
+            terminal: SynthesisJobResponse = SynthesisJobCompleted(
+                job_id=job.job_id,
+                result=job.result,
+            )
+        else:
+            terminal = SynthesisJobFailed(
+                job_id=job.job_id,
+                error=job.error or UNEXPECTED_JOB_ERROR,
+            )
+        assert job.delivery_lease is not None
+        return FinalizingJSONResponse(
+            content=terminal.model_dump(mode="json"),
+            background=BackgroundTask(
+                job_manager.release_delivery,
+                job.job_id,
+                job.delivery_lease,
+                owner=owner,
+            ),
         )
 
     @application.delete(

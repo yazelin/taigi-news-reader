@@ -100,6 +100,21 @@ async def test_synthesize_enforces_runtime_text_limit(request_body):
     assert response.status_code == 413
 
 
+async def test_direct_synthesis_can_be_explicitly_disabled(request_body):
+    app = create_app(
+        Settings(provider_mode="mock", allow_direct_synthesis=False)
+    )
+
+    response = await make_request(
+        app,
+        "POST",
+        "/v1/synthesize",
+        json=request_body,
+    )
+
+    assert response.status_code == 404
+
+
 async def test_cors_allows_chrome_extension_and_localhost(mock_app):
     headers = {
         "Origin": f"chrome-extension://{'a' * 32}",

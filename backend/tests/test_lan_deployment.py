@@ -55,6 +55,7 @@ def test_lan_environment_is_fail_closed_and_contains_no_example_secret():
     assert "TAIGI_ALLOW_LOCALHOST_ORIGINS=false" in environment
     assert "TAIGI_REQUIRE_ALLOWED_ORIGIN=true" in environment
     assert "TAIGI_REQUIRE_ACCESS_TOKEN=true" in environment
+    assert "TAIGI_ALLOW_DIRECT_SYNTHESIS=false" in environment
     assert "TAIGI_ACCESS_TOKEN_HASHES=\n" in environment
     assert "TAIGI_QUOTA_DATABASE_PATH=/var/lib/taigi/quota.sqlite3" in environment
     assert "TAIGI_DAILY_SUBJECT_JOB_LIMIT=" in environment
