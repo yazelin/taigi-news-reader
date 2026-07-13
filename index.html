@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>台語新聞朗讀｜Chrome 長輩友善新聞朗讀擴充套件</title>
-  <meta name="description" content="在 Chrome 主動擷取或選取繁體中文新聞，確認後交由已設定的台語語音服務轉換並播放。非商用測試版，支援暫停、續播與本機重播。">
+  <title>台語新聞朗讀｜可私人測試與自架的 Chrome 擴充套件</title>
+  <meta name="description" content="在 Chrome 主動讀取或選取繁體中文新聞，確認後轉為台語朗讀。可使用邀請制免費私人測試，或自架後端並選擇 Groq、Gemini、OpenAI-compatible、Ollama 與 MMS 台語 TTS。非商用測試版。">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
   <meta name="application-name" content="台語新聞朗讀">
   <meta name="theme-color" content="#155b2c">
@@ -18,20 +18,20 @@
   <meta property="og:type" content="website">
   <meta property="og:locale" content="zh_TW">
   <meta property="og:site_name" content="台語新聞朗讀">
-  <meta property="og:title" content="台語新聞朗讀｜Chrome 長輩友善擴充套件">
-  <meta property="og:description" content="在 Chrome 主動擷取或選取繁體中文新聞，確認後交由已設定的台語語音服務轉換並播放。非商用測試版，支援暫停、續播與本機重播。">
+  <meta property="og:title" content="台語新聞朗讀｜私人測試，也能私有自架">
+  <meta property="og:description" content="Chrome 長輩友善台語朗讀工具。可加入邀請制免費私人測試，或自架後端、自選翻譯服務，API 金鑰只留在後端。">
   <meta property="og:image" content="https://yazelin.github.io/taigi-news-reader/assets/og-image.png">
   <meta property="og:image:secure_url" content="https://yazelin.github.io/taigi-news-reader/assets/og-image.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="台語新聞朗讀：讓繁體中文新聞文字在 Chrome 確認後轉成台語播放的非商用測試版">
+  <meta property="og:image:alt" content="台語新聞朗讀 Chrome 擴充套件：邀請制私人測試，也支援自行架設後端">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="台語新聞朗讀｜Chrome 長輩友善擴充套件">
-  <meta name="twitter:description" content="在 Chrome 主動擷取或選取繁體中文新聞，確認後交由已設定的台語語音服務轉換並播放。非商用測試版。">
+  <meta name="twitter:title" content="台語新聞朗讀｜私人測試，也能私有自架">
+  <meta name="twitter:description" content="Chrome 長輩友善台語朗讀工具。可加入邀請制免費私人測試，或自架後端、自選翻譯服務。">
   <meta name="twitter:image" content="https://yazelin.github.io/taigi-news-reader/assets/og-image.png">
-  <meta name="twitter:image:alt" content="台語新聞朗讀：讓繁體中文新聞文字在 Chrome 確認後轉成台語播放的非商用測試版">
+  <meta name="twitter:image:alt" content="台語新聞朗讀 Chrome 擴充套件：邀請制私人測試，也支援自行架設後端">
 
   <script type="application/ld+json">
     {
@@ -39,17 +39,19 @@
       "@type": "SoftwareApplication",
       "name": "台語新聞朗讀",
       "url": "https://yazelin.github.io/taigi-news-reader/",
-      "description": "在 Chrome 主動擷取或選取繁體中文新聞，確認後交由已設定的台語語音服務轉換並播放。",
+      "description": "在 Chrome 主動讀取或選取繁體中文新聞，確認後轉成台語播放；可使用邀請制私人測試，或自行架設後端與台語 TTS。",
       "applicationCategory": "BrowserApplication",
       "operatingSystem": "Chrome",
       "inLanguage": "zh-Hant-TW",
       "image": "https://yazelin.github.io/taigi-news-reader/assets/og-image.png",
-      "isAccessibleForFree": true,
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "TWD"
-      },
+      "softwareRequirements": "Google Chrome；私人測試需個別邀請碼，自架需自行部署後端服務",
+      "featureList": [
+        "邀請制免費私人測試",
+        "可自行架設後端",
+        "可選 Groq、Gemini、OpenAI-compatible 或 Ollama 翻譯",
+        "MMS 台語 TTS",
+        "暫停、續播與選用的本機重播"
+      ],
       "sameAs": "https://github.com/yazelin/taigi-news-reader"
     }
   </script>
@@ -63,8 +65,10 @@
       <span>台語新聞朗讀</span>
     </a>
     <nav class="site-nav" aria-label="主要導覽">
+      <a href="#ways-to-use">兩種用法</a>
       <a href="#features">功能</a>
-      <a href="#how-it-works">使用方式</a>
+      <a href="#self-hosting">自架重點</a>
+      <a href="#faq">常見問題</a>
       <a href="https://github.com/yazelin/taigi-news-reader">GitHub</a>
       <a href="https://github.com/yazelin/taigi-news-reader/blob/main/PRIVACY.md">隱私政策</a>
     </nav>
@@ -75,10 +79,10 @@
       <div class="hero-copy">
         <p class="eyebrow">Chrome 擴充套件・非商用測試版</p>
         <h1 id="hero-title">讓新聞，用台語陪你聽</h1>
-        <p class="lede">主動讀取或選取繁體中文新聞，先確認內容，再交由你設定的台語語音服務轉換並播放。</p>
+        <p class="lede">主動讀取或選取繁體中文新聞，先確認內容，再轉成台語播放。你可以加入邀請制私人測試，也可以把整套後端架在自己的設備或伺服器。</p>
         <div class="actions">
-          <a class="button primary" href="https://github.com/yazelin/taigi-news-reader#readme">查看專案與測試方式</a>
-          <a class="button" href="https://github.com/yazelin/taigi-news-reader/blob/main/PRIVACY.md">資料怎麼處理</a>
+          <a class="button primary" href="#ways-to-use">選擇使用方式</a>
+          <a class="button" href="https://github.com/yazelin/taigi-news-reader#readme">查看原始碼與文件</a>
         </div>
         <p class="status-line" id="status">
           <span class="status-dot" aria-hidden="true"></span>
@@ -91,6 +95,58 @@
           <p>長輩友善・清楚控制</p>
         </div>
       </div>
+    </section>
+
+    <section class="content-section" id="ways-to-use" aria-labelledby="ways-title">
+      <div class="section-heading">
+        <p class="section-kicker">同一套擴充套件，兩種使用方式</p>
+        <h2 id="ways-title">想快速試用，或想自己掌控，都可以</h2>
+        <p class="section-intro">一般使用者不必安裝模型；需要掌控服務、資料流與配額的人，也能部署自己的後端。先看哪條路適合你。</p>
+      </div>
+
+      <div class="usage-grid">
+        <article class="usage-card beta-card">
+          <p class="path-label">給受邀測試者</p>
+          <h3>邀請制免費私人測試</h3>
+          <p class="usage-summary">由專案營運方準備翻譯與台語語音服務，你只需安裝 Chrome 擴充套件、填入個別邀請碼，就能開始試聽。</p>
+          <ul class="check-list">
+            <li>不用安裝 Python、Ollama 或大型模型</li>
+            <li>每位測試者使用可撤銷的個別邀請碼</li>
+            <li>有每日個人與全體共用配額，適合測試而非大量使用</li>
+            <li>目前仍在 Chrome Web Store 私人審查階段，沒有公開安裝連結</li>
+          </ul>
+          <details class="quota-details">
+            <summary>查看目前託管 DEMO 配額</summary>
+            <p>目前每個邀請身分每天最多 20 個工作、12,000 個原文字元；擴充套件每段最多 500 字，因此實際通常先在約 10,000 字碰到工作數上限。全體測試者另共用每天 100 個工作、60,000 字，於台灣時間 08:00 重置。工作一經接受即計入，失敗或取消目前不退回。已保存的本機重播命中時不呼叫後端，也不扣配額。</p>
+          </details>
+          <p class="availability-note">目前不向受邀者收費；這是限額測試，不代表永久免費、公開註冊或提供 SLA。</p>
+          <div class="card-actions">
+            <a class="button primary" href="https://github.com/yazelin/taigi-news-reader#hosted-private-beta">查看私人測試說明</a>
+            <a class="text-link" href="https://github.com/yazelin/taigi-news-reader/blob/main/PRIVACY.md">了解資料如何處理</a>
+          </div>
+        </article>
+
+        <article class="usage-card self-host-card">
+          <p class="path-label">給家庭、社群與開發者</p>
+          <h3>私有自架，自行掌控</h3>
+          <p class="usage-summary">擴充套件不綁定 DEMO。你可以自行部署後端、管理使用者與配額，並決定翻譯和語音在哪裡執行。</p>
+          <ul class="check-list">
+            <li>翻譯可選 Groq、Gemini、其他 OpenAI-compatible provider，或本機 Ollama</li>
+            <li>台語語音可在自己的後端執行 <code>facebook/mms-tts-nan</code></li>
+            <li>Groq、Gemini 等 API key 只放在後端 secret，不會交給擴充套件</li>
+            <li>不使用專案 DEMO 的每日額度；你自行設定驗證、配額與資源上限</li>
+          </ul>
+          <div class="card-actions">
+            <a class="button primary" href="https://github.com/yazelin/taigi-news-reader/blob/main/deploy/lan/README.md">開始看自架部署</a>
+            <a class="text-link" href="https://github.com/yazelin/taigi-news-reader/blob/main/backend/README.md">後端與 provider 設定</a>
+          </div>
+        </article>
+      </div>
+
+      <aside class="privacy-clarifier" aria-labelledby="privacy-clarifier-title">
+        <h3 id="privacy-clarifier-title">「自架」不一定等於「內容完全不離開家裡」</h3>
+        <p>若自架後端再選用 Groq、Gemini 或其他雲端 provider，新聞文字仍會由你的後端送到該服務。想讓翻譯與語音都留在自己的設備或私有網路，請使用 <strong>Ollama＋MMS</strong> 本機路徑；第一次仍需下載模型。</p>
+      </aside>
     </section>
 
     <section class="content-section" id="features" aria-labelledby="features-title">
@@ -115,6 +171,69 @@
       </div>
     </section>
 
+    <section class="content-section" id="self-hosting" aria-labelledby="self-hosting-title">
+      <div class="section-heading">
+        <p class="section-kicker">自架架構一眼看懂</p>
+        <h2 id="self-hosting-title">擴充套件只連你指定的後端</h2>
+        <p class="section-intro">後端負責保存服務設定、呼叫翻譯器與產生台語音訊；provider API key 不會寫進擴充套件，也不會出現在這個 Pages 網站。</p>
+      </div>
+
+      <ol class="pipeline" aria-label="自架資料處理流程">
+        <li>
+          <span class="pipeline-step">1</span>
+          <strong>Chrome 擴充套件</strong>
+          <span>使用者確認後，只送出要朗讀的純文字</span>
+        </li>
+        <li>
+          <span class="pipeline-step">2</span>
+          <strong>你的後端</strong>
+          <span>管理驗證、配額、工作與秘密金鑰</span>
+        </li>
+        <li>
+          <span class="pipeline-step">3</span>
+          <strong>翻譯服務</strong>
+          <span>Groq／Gemini／OpenAI-compatible／Ollama</span>
+        </li>
+        <li>
+          <span class="pipeline-step">4</span>
+          <strong>台語 TTS</strong>
+          <span>本機 MMS 或相容 adapter 產生 WAV</span>
+        </li>
+      </ol>
+
+      <div class="security-grid">
+        <article class="security-card">
+          <h3>連線必須可信</h3>
+          <p><code>localhost</code>／<code>127.0.0.1</code> 開發時可用 HTTP；其他位址，包括家中區網 IP，都必須透過 Chrome 信任的 <strong>HTTPS hostname</strong> 連線。</p>
+        </article>
+        <article class="security-card">
+          <h3>公開網路不能裸奔</h3>
+          <p>若後端能從 Internet 存取，至少要有逐人驗證、每日配額、速率與資源限制、固定擴充套件來源，以及清楚的隱私告知。不要直接公開開發用 Uvicorn port。</p>
+        </article>
+        <article class="security-card">
+          <h3>金鑰只留後端</h3>
+          <p>Groq、Gemini 或遠端 TTS 的 key 應放在未追蹤的環境設定或 secret manager。Provider 設定上，擴充套件只接收自架後端的網址與邀請碼，不接觸 provider key。</p>
+        </article>
+        <article class="security-card">
+          <h3>目前限非商用</h3>
+          <p>專案程式碼採 MIT，但預設 <code>facebook/mms-tts-nan</code> 模型權重採 CC BY-NC 4.0。商用前必須改用授權合適的 TTS 或另行取得授權。</p>
+        </article>
+      </div>
+
+      <div class="docs-panel" aria-labelledby="docs-title">
+        <div>
+          <h3 id="docs-title">準備部署自己的版本？</h3>
+          <p>從安全 LAN 範本開始，再依架構文件確認 provider、HTTPS、資料流與防濫用邊界。</p>
+        </div>
+        <div class="docs-links">
+          <a href="https://github.com/yazelin/taigi-news-reader/blob/main/deploy/lan/README.md">自架部署指南</a>
+          <a href="https://github.com/yazelin/taigi-news-reader/blob/main/backend/README.md">後端設定</a>
+          <a href="https://github.com/yazelin/taigi-news-reader/blob/main/docs/architecture.md">架構與安全邊界</a>
+          <a href="https://github.com/yazelin/taigi-news-reader/blob/main/docs/manual-test.md">手動驗收清單</a>
+        </div>
+      </div>
+    </section>
+
     <section class="content-section" id="how-it-works" aria-labelledby="how-title">
       <h2 id="how-title">三步開始朗讀</h2>
       <ol class="steps">
@@ -130,10 +249,42 @@
       </ol>
     </section>
 
+    <section class="content-section" id="faq" aria-labelledby="faq-title">
+      <div class="section-heading">
+        <p class="section-kicker">分享前先回答</p>
+        <h2 id="faq-title">常見問題</h2>
+        <p class="section-intro">安裝者只要使用擴充套件；模型、供應商與伺服器設定，是託管方或自架者才需要處理。</p>
+      </div>
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>一定要安裝 Qwen 或 Ollama 嗎？</summary>
+          <p>不用。受邀使用專案 DEMO 的人不需安裝模型；自架者也能選 Groq、Gemini 或其他 OpenAI-compatible 翻譯服務。只有想把翻譯留在自己的主機時，才需要 Ollama 等本機模型；Qwen 只是實驗性參考，不是硬性依賴。</p>
+        </details>
+        <details class="faq-item">
+          <summary>可以把自己的 Groq／Gemini key 直接填進擴充套件嗎？</summary>
+          <p>不行，也不應這樣做。擴充套件只設定相容後端的 URL 與邀請碼；provider key 應保存在自架後端未追蹤的環境設定或 secret manager。</p>
+        </details>
+        <details class="faq-item">
+          <summary>後端可以直接填 <code>http://192.168.x.x</code> 嗎？</summary>
+          <p>不行。只有同機的 <code>localhost</code>／<code>127.0.0.1</code> 可用 HTTP；NAS、家用伺服器及其他 LAN 位址也必須使用 Chrome 信任的 HTTPS hostname。</p>
+        </details>
+        <details class="faq-item">
+          <summary>自架後，新聞內容就一定不會送到第三方嗎？</summary>
+          <p>不一定。若後端選 Groq、Gemini 或 remote TTS，相關文字仍會送給該 provider；只有本機翻譯＋本機 TTS 的路徑，才把處理留在自己的設備或私有網路。</p>
+        </details>
+        <details class="faq-item">
+          <summary>可以拿來商用嗎？</summary>
+          <p>repo 自有程式碼採 MIT，但預設 <code>facebook/mms-tts-nan</code> 權重是 CC BY-NC 4.0。這個組合目前只適用非商業用途；商用必須更換授權合適的 TTS，或另外取得授權。</p>
+        </details>
+      </div>
+    </section>
+
     <section class="content-section" aria-labelledby="honesty-title">
       <div class="honesty-note">
         <h2 id="honesty-title">這是一個仍在驗證中的非商用 MVP</h2>
         <p>台語翻譯、用詞、腔口與發音仍可能不準確，需要台語母語者與長輩持續試聽。請勿用於緊急、醫療、法律或其他需要逐字正確的內容。</p>
+        <p>預設 MMS 模型的非商用授權不會因本 repo 採 MIT 而改變；若替換 provider，也要重新確認授權、資料保存、訓練使用與隱私政策。</p>
+        <p class="note-links"><a href="https://github.com/yazelin/taigi-news-reader/blob/main/THIRD_PARTY_NOTICES.md">第三方授權說明</a>・<a href="https://github.com/yazelin/taigi-news-reader/blob/main/docs/validation.md">目前驗證範圍</a></p>
       </div>
     </section>
   </main>
