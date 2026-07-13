@@ -12,6 +12,7 @@ from taigi_news_reader_backend.providers import (
     RemoteTtsSynthesizer,
 )
 from taigi_news_reader_backend.providers.mms import float_waveform_to_wav
+from taigi_news_reader_backend.providers.ollama import REPAIR_SYSTEM_PROMPT
 
 
 async def test_openai_compatible_translator_uses_chat_completions_contract():
@@ -46,11 +47,121 @@ async def test_openai_compatible_translator_uses_chat_completions_contract():
     assert seen["path"] == "/v1/chat/completions"
     assert seen["authorization"] == "Bearer secret"
     assert seen["body"]["model"] == "translator-model"
+    assert set(seen["body"]) == {"model", "messages", "temperature"}
     await client.aclose()
 
 
-@pytest.mark.parametrize("invalid", ["這是中文", "sin-bun 2026", "bad"])
-async def test_openai_compatible_translation_rejects_non_mms_characters(invalid):
+@pytest.mark.parametrize(
+    "model", ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
+)
+async def test_groq_gpt_oss_gets_model_specific_reasoning_budget(model):
+    payloads: list[dict[str, object]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": "tâi-gí sin-bûn"},
+                    }
+                ]
+            },
+        )
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.groq.com/openai/v1/",
+    )
+    provider = OpenAICompatibleTranslator(
+        base_url="https://unused",
+        api_key="secret",
+        model=model,
+        timeout_seconds=1,
+        max_output_chars=500,
+        client=client,
+    )
+
+    assert await provider.translate("新聞") == "tâi-gí sin-bûn"
+    assert payloads == [
+        {
+            "model": model,
+            "messages": payloads[0]["messages"],
+            "temperature": 0.1,
+            "reasoning_effort": "low",
+            "include_reasoning": False,
+            "max_completion_tokens": 8_192,
+        }
+    ]
+    await client.aclose()
+
+
+async def test_openai_compatible_repairs_groq_newline_and_superscript_n_regression():
+    outputs = iter(["tâi-gí\nthiⁿ-khì", "tâi-gí thinn-khì"])
+    payloads: list[dict[str, object]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": next(outputs)}}]},
+        )
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://provider.test/v1/",
+    )
+    provider = OpenAICompatibleTranslator(
+        base_url="https://unused",
+        api_key="secret",
+        model="translator-model",
+        timeout_seconds=1,
+        max_output_chars=100,
+        client=client,
+    )
+
+    result = await provider.translate("新聞")
+
+    assert result == "tâi-gí thinn-khì"
+    assert len(payloads) == 2
+    assert payloads[1]["messages"][0]["content"] == REPAIR_SYSTEM_PROMPT
+    assert "thiⁿ-khì" in payloads[1]["messages"][1]["content"]
+    await client.aclose()
+
+
+async def test_openai_compatible_normalizes_newline_without_repair():
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "tâi-gí\n  sin-bûn"}}]},
+        )
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://provider.test/v1/",
+    )
+    provider = OpenAICompatibleTranslator(
+        base_url="https://unused",
+        api_key="secret",
+        model="translator-model",
+        timeout_seconds=1,
+        max_output_chars=100,
+        client=client,
+    )
+
+    assert await provider.translate("新聞") == "tâi-gí sin-bûn"
+    assert calls == 1
+    await client.aclose()
+
+
+@pytest.mark.parametrize("invalid", ["這是中文", "sin-bun 2026", "bad", "thiⁿ"])
+async def test_openai_compatible_fails_after_one_invalid_repair(invalid):
     calls = 0
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -74,9 +185,9 @@ async def test_openai_compatible_translation_rejects_non_mms_characters(invalid)
         client=client,
     )
 
-    with pytest.raises(ProviderError, match="incompatible"):
+    with pytest.raises(ProviderError, match="after one repair attempt"):
         await provider.translate("新聞")
-    assert calls == 1
+    assert calls == 2
     await client.aclose()
 
 

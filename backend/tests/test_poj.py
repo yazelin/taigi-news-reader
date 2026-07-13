@@ -12,6 +12,12 @@ def test_valid_poj_is_normalized_to_checkpoint_lowercase_vocabulary():
     ) == "tâi-gí si̍t-chāi hó͘"
 
 
+def test_unicode_whitespace_collapses_to_supported_ascii_space():
+    assert normalize_and_validate_mms_poj(
+        "tâi-gí\n\t sin-bûn", provider="test"
+    ) == "tâi-gí sin-bûn"
+
+
 @pytest.mark.parametrize(
     "invalid",
     [

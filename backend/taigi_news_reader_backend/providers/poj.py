@@ -31,7 +31,10 @@ def normalize_and_validate_mms_poj(value: str, *, provider: str) -> str:
     lowercase vocabulary. No transliteration or source-text fallback occurs.
     """
 
-    normalized = unicodedata.normalize("NFC", value).strip().lower()
+    # Providers commonly wrap or line-break otherwise valid POJ. Collapse all
+    # Unicode whitespace to the tokenizer's one supported ASCII space without
+    # admitting any additional character into the final alphabet.
+    normalized = unicodedata.normalize("NFC", " ".join(value.split())).lower()
     if not normalized:
         raise ProviderError(f"{provider} returned an empty translation")
     unsupported = sorted(set(normalized) - MMS_NAN_ALLOWED_CHARACTERS)
@@ -45,4 +48,3 @@ def normalize_and_validate_mms_poj(value: str, *, provider: str) -> str:
             f"vocabulary (unsupported: {rendered})"
         )
     return normalized
-

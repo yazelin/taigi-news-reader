@@ -1,13 +1,16 @@
 const { SETTINGS_KEY, endpoint } = require("./lib/settings");
 const { initialState, reducePlayerState } = require("./lib/player-state");
+const { installActionSidePanel } = require("./lib/action-side-panel");
 
 let state = initialState();
 let runId = 0;
 let abortController = null;
 let creatingOffscreen = null;
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+installActionSidePanel(chrome, {
+  onError(error) {
+    console.error("Unable to open the side panel from the extension action.", error);
+  }
 });
 
 async function ensureOffscreen() {

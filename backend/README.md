@@ -7,11 +7,12 @@ the OpenAI-compatible translator and remote TTS adapters. Local models load only
 on the first synthesis request. Provider failures return an error; the service
 never falls back to a Mandarin browser voice.
 
-The bundled Qwen translator is an experimental local reference. Its output is
-checked against the MMS checkpoint's exact POJ character vocabulary before TTS;
-Ollama gets one strict repair attempt, then the request fails loudly instead of
-speaking Chinese, digits, or unsupported pseudo-romanization. Native-speaker
-review is still required before treating its translations as publication-ready.
+The bundled Qwen translator is an experimental local reference. Translation
+output is checked against the MMS checkpoint's exact POJ character vocabulary
+before TTS; Ollama and OpenAI-compatible adapters get one strict repair attempt,
+then the request fails loudly instead of speaking Chinese, digits, or unsupported
+pseudo-romanization. Native-speaker review is still required before treating its
+translations as publication-ready.
 
 ## Setup and run
 
