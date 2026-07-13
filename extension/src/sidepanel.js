@@ -1,12 +1,13 @@
 const { chunkText, normalizeText } = require("./lib/chunk");
-const { SETTINGS_KEY, endpoint, originPermission } = require("./lib/settings");
+const { SETTINGS_KEY, endpoint, originPermission, storedAccessToken } = require("./lib/settings");
 const { initialState } = require("./lib/player-state");
 const { describeService } = require("./lib/backend-identity");
 const { createBackendFetch } = require("./lib/backend-fetch");
 
 const backendFetch = createBackendFetch({
   fetchImpl: (...args) => fetch(...args),
-  extensionId: chrome.runtime.id
+  extensionId: chrome.runtime.id,
+  getAccessToken: (requestUrl) => storedAccessToken(chrome.storage.local, requestUrl)
 });
 
 const elements = Object.fromEntries([
@@ -19,6 +20,9 @@ const elements = Object.fromEntries([
 let extraction = null;
 let playbackState = initialState();
 let replayHistory = [];
+const trustedStorageReady = chrome.storage.local.setAccessLevel
+  ? chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
+  : Promise.resolve();
 
 function showMessage(text, kind = "error") {
   elements.message.textContent = text;
@@ -32,14 +36,29 @@ function showSetup(show, reason = "") {
 }
 
 async function getSettings() {
+  try {
+    await trustedStorageReady;
+  } catch {
+    throw new Error("無法保護本機邀請碼儲存空間，請重新載入擴充套件後再試。");
+  }
   const result = await chrome.storage.local.get(SETTINGS_KEY);
   return result[SETTINGS_KEY] || { backendUrl: "" };
 }
 
 async function checkBackend() {
-  const settings = await getSettings();
+  let settings;
+  try {
+    settings = await getSettings();
+  } catch (error) {
+    showSetup(true, error.message || "無法讀取台語語音服務設定。");
+    return false;
+  }
   if (!settings.backendUrl) {
     showSetup(true, "尚未設定台語語音服務。請先完成設定。");
+    return false;
+  }
+  if (!settings.accessToken) {
+    showSetup(true, "尚未設定私人測試邀請碼。請到設定頁輸入邀請碼並完成驗證。");
     return false;
   }
   const hasPermission = await chrome.permissions.contains({ origins: [originPermission(settings.backendUrl)] });
@@ -51,7 +70,11 @@ async function checkBackend() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 4500);
     try {
-      const response = await backendFetch(endpoint(settings.backendUrl, "/health"), { signal: controller.signal });
+      const response = await backendFetch(endpoint(settings.backendUrl, "/v1/access"), { signal: controller.signal });
+      if (response.status === 401 || response.status === 403) {
+        showSetup(true, "私人測試邀請碼無效或已撤銷，請到設定頁重新輸入。");
+        return false;
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
     } finally {
       clearTimeout(timer);

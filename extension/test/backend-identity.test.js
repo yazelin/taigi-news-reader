@@ -44,6 +44,7 @@ test("live health identity includes mode, translator, and synthesizer and is sto
   const seen = [];
   const fetchImpl = createBackendFetch({
     extensionId: "abcdefghijklmnopabcdefghijklmnop",
+    getAccessToken: async () => "test-invite-token",
     fetchImpl: async (url, options) => {
       seen.push({ url, signal: options.signal, headers: options.headers });
       return { ok: true, json: async () => service };

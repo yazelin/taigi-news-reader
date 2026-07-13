@@ -72,6 +72,7 @@ test("creates, polls, parses, and deletes a completed synthesis job", async () =
   const delays = [];
   const fetchImpl = createBackendFetch({
     extensionId: "abcdefghijklmnopabcdefghijklmnop",
+    getAccessToken: async () => "test-invite-token",
     async fetchImpl(url, options) {
       requests.push({ url, options });
       return replies.shift();

@@ -1,4 +1,4 @@
-const { SETTINGS_KEY, endpoint } = require("./lib/settings");
+const { SETTINGS_KEY, endpoint, storedAccessToken } = require("./lib/settings");
 const { initialState, reducePlayerState, validateState } = require("./lib/player-state");
 const { createPlayerStateStore, persistablePlayerState } = require("./lib/player-state-store");
 const { installActionSidePanel } = require("./lib/action-side-panel");
@@ -19,7 +19,8 @@ const INTERRUPTED_MESSAGE = "上次朗讀工作已中斷，請重新開始。";
 const activeJobs = createActiveJobStore(chrome.storage.session);
 const backendFetch = createBackendFetch({
   fetchImpl: (...args) => fetch(...args),
-  extensionId: chrome.runtime.id
+  extensionId: chrome.runtime.id,
+  getAccessToken: (requestUrl) => storedAccessToken(chrome.storage.local, requestUrl)
 });
 const synthesis = createSynthesisJobClient({
   fetchImpl: backendFetch,
@@ -323,6 +324,7 @@ async function start(message) {
   if (!Array.isArray(message.chunks) || !message.chunks.length) throw new Error("沒有可朗讀的文字。");
   const settings = (await chrome.storage.local.get(SETTINGS_KEY))[SETTINGS_KEY];
   if (!settings?.backendUrl) throw new Error("尚未設定台語語音服務。");
+  if (!settings?.accessToken) throw new Error("尚未設定私人測試邀請碼。請先到設定頁完成驗證。");
 
   const cacheEnabled = await replayCache.enabled();
   const {
@@ -431,6 +433,10 @@ async function handleCommand(message) {
     case "CLEAR":
       await stop(true);
       break;
+    case "PREPARE_SETTINGS_CHANGE":
+      await stop(true);
+      await backendIdentities.clear();
+      return { prepared: true };
     case "GET_REPLAY_HISTORY": {
       const enabled = await replayCache.enabled();
       try {
@@ -488,7 +494,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes[SETTINGS_KEY]) return;
   const before = changes[SETTINGS_KEY].oldValue?.backendUrl || "";
   const after = changes[SETTINGS_KEY].newValue?.backendUrl || "";
-  if (before !== after) {
+  const tokenChanged = changes[SETTINGS_KEY].oldValue?.accessToken !== changes[SETTINGS_KEY].newValue?.accessToken;
+  if (before !== after || tokenChanged) {
     backendIdentities.clear().catch((error) => {
       console.warn("Unable to clear the previous replay backend identity.", error);
     });
