@@ -12,7 +12,7 @@ from taigi_news_reader_backend.providers import (
     MockTtsSynthesizer,
     ProviderError,
 )
-from taigi_news_reader_backend.providers.ollama import REPAIR_SYSTEM_PROMPT, SYSTEM_PROMPT
+from taigi_news_reader_backend.providers.ollama import SYSTEM_PROMPT
 from taigi_news_reader_backend.service import SynthesisService
 
 
@@ -120,8 +120,8 @@ async def test_gemini_upstream_failure_does_not_expose_key_in_api_error():
     await client.aclose()
 
 
-async def test_gemini_inherits_empty_retry_and_strict_poj_repair():
-    responses = iter(["", "tâi-gí thiⁿ-khì", "tâi-gí thinn-khì"])
+async def test_gemini_inherits_empty_retry_and_poj_format_normalization():
+    responses = iter(["", "tâi-gí, thiⁿ-khì。"])
     payloads: list[dict[str, object]] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -152,10 +152,9 @@ async def test_gemini_inherits_empty_retry_and_strict_poj_repair():
     )
 
     assert await provider.translate("新聞") == "tâi-gí thinn-khì"
-    assert len(payloads) == 3
+    assert len(payloads) == 2
     assert payloads[0]["messages"][0]["content"] == SYSTEM_PROMPT
     assert payloads[1] == payloads[0]
-    assert payloads[2]["messages"][0]["content"] == REPAIR_SYSTEM_PROMPT
     await client.aclose()
 
 

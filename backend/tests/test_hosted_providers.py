@@ -12,7 +12,7 @@ from taigi_news_reader_backend.providers import (
     RemoteTtsSynthesizer,
 )
 from taigi_news_reader_backend.providers.mms import float_waveform_to_wav
-from taigi_news_reader_backend.providers.ollama import REPAIR_SYSTEM_PROMPT
+from taigi_news_reader_backend.providers.ollama import SYSTEM_PROMPT
 
 
 async def test_openai_compatible_translator_uses_chat_completions_contract():
@@ -193,15 +193,18 @@ async def test_openai_compatible_two_empty_contents_fail_after_one_retry():
     await client.aclose()
 
 
-async def test_openai_compatible_repairs_groq_newline_and_superscript_n_regression():
-    outputs = iter(["tâi-gí\nthiⁿ-khì", "tâi-gí thinn-khì"])
+async def test_openai_compatible_normalizes_groq_punctuation_and_superscript_n():
     payloads: list[dict[str, object]] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
         payloads.append(json.loads(request.content))
         return httpx.Response(
             200,
-            json={"choices": [{"message": {"content": next(outputs)}}]},
+            json={
+                "choices": [
+                    {"message": {"content": "tâi-gí,\nthiⁿ-khì。"}}
+                ]
+            },
         )
 
     client = httpx.AsyncClient(
@@ -220,9 +223,8 @@ async def test_openai_compatible_repairs_groq_newline_and_superscript_n_regressi
     result = await provider.translate("新聞")
 
     assert result == "tâi-gí thinn-khì"
-    assert len(payloads) == 2
-    assert payloads[1]["messages"][0]["content"] == REPAIR_SYSTEM_PROMPT
-    assert "thiⁿ-khì" in payloads[1]["messages"][1]["content"]
+    assert len(payloads) == 1
+    assert payloads[0]["messages"][0]["content"] == SYSTEM_PROMPT
     await client.aclose()
 
 
@@ -255,7 +257,9 @@ async def test_openai_compatible_normalizes_newline_without_repair():
     await client.aclose()
 
 
-@pytest.mark.parametrize("invalid", ["這是中文", "sin-bun 2026", "bad", "thiⁿ"])
+@pytest.mark.parametrize(
+    "invalid", ["這是中文", "sin-bun 2026", "bad", "tâi-gír"]
+)
 async def test_openai_compatible_fails_after_one_invalid_repair(invalid):
     calls = 0
 

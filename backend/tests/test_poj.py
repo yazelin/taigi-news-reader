@@ -18,14 +18,38 @@ def test_unicode_whitespace_collapses_to_supported_ascii_space():
     ) == "tâi-gí sin-bûn"
 
 
+def test_superscript_n_and_sentence_punctuation_are_normalized():
+    assert normalize_and_validate_mms_poj(
+        "Tâi-gí,\nthiⁿ-khì。 (hó͘!)", provider="test"
+    ) == "tâi-gí thinn-khì hó͘"
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected"),
+    [
+        ("hit’ê", "hit'ê"),
+        ("hit‘ê", "hit'ê"),
+        ("hitʼê", "hit'ê"),
+        ("sin‑bûn", "sin-bûn"),
+        ("sin–bûn", "sin-bûn"),
+        ("sin—bûn", "sin-bûn"),
+    ],
+)
+def test_common_apostrophe_and_hyphen_variants_are_normalized(
+    variant, expected
+):
+    assert normalize_and_validate_mms_poj(variant, provider="test") == expected
+
+
 @pytest.mark.parametrize(
     "invalid",
     [
         "這是中文",
         "sin-bun 2026",
         "bad",
-        "tâi-gí.",
+        "tâi-gír",
         "tâi|gí",
+        "tâi+gí",
     ],
 )
 def test_invalid_characters_never_pass_mms_vocabulary_gate(invalid):
