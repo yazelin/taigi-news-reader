@@ -12,6 +12,7 @@
 - Chrome 149 headless 能以 `--load-extension` 接受 build 後的 MV3 manifest；side panel 與權限互動仍需有介面的手動測試。
 - 真實 MMS：已下載並載入 `facebook/mms-tts-nan`，以合法 POJ 短句產生 54,316-byte、16 kHz、mono、1.696 秒 PCM WAV。
 - 真實 Ollama 防線：本機 `qwen3:4b-instruct-2507-q4_K_M` 對測試新聞未能穩定產生符合 MMS 字表的 POJ；後端在一次修復仍失敗後，於 TTS 前明確拒絕，沒有用華語或無效輸出假裝成功。
+- 本機 `qwen3:8b` 曾產生字元表合法但語言品質不正確的 pseudo-POJ，證明字元 gate 只能防格式污染，不能取代母語者／專用翻譯模型的語意與發音驗收。
 
 ## 尚未通過／上線前必做
 

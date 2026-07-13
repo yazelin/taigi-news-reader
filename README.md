@@ -56,6 +56,8 @@ remote TTS endpoint 接收 `{"text":"...","language":"nan-TW","rate":1.0}`，回
 
 目前的非商用目標也可以把 MMS 直接跑在 hosted backend：將 `TAIGI_TTS_PROVIDER=mms`、`TAIGI_MMS_MODEL=facebook/mms-tts-nan`，並以 `docker build --build-arg INSTALL_LOCAL_MMS=1 ...` 建置。這樣一般使用者仍不需安裝模型；模型只存在營運方 server。翻譯端可接 OpenAI-compatible provider，或在同一個私有網路中使用 Ollama。
 
+例如 [Groq 已提供 OpenAI-compatible Chat Completions](https://console.groq.com/docs/openai)，可直接使用現有 adapter：`TAIGI_OPENAI_BASE_URL=https://api.groq.com/openai/v1`，API key 只放 server，模型可先以 `openai/gpt-oss-120b` 做 POJ 品質測試。接得上 API 不等於台語品質已通過；輸出仍須經 MMS 字元 gate、新聞測試集與母語者驗收。
+
 ```bash
 docker build -t taigi-news-reader-backend backend
 docker run --rm --env-file backend/.env.production \
