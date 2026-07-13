@@ -4,6 +4,10 @@
 
 這個專案目前定位為**非商用**、可驗證技術路徑的 MVP，不宣稱已經達到播音員等級，也不會以華語語音替換文字後冒充台語。repo 內提供 [`facebook/mms-tts-nan`](https://huggingface.co/facebook/mms-tts-nan) 的實際 TTS reference；它是南閩語（`nan`）模型，但音色、腔口、字詞與長輩可懂度仍須由台語母語使用者試聽驗收。
 
+專案公開介紹頁預定由 GitHub Pages 提供：<https://yazelin.github.io/taigi-news-reader/>。頁面來源是 repo root 的 [`index.html`](index.html)，社群分享圖同時保留可維護的 [`assets/og-image.svg`](assets/og-image.svg) 與實際供 Open Graph／Twitter 使用的 1200×630 [`assets/og-image.png`](assets/og-image.png)。啟用 Pages 時使用 `main` branch 的 repo root；canonical 與分享圖網址已固定為上述正式 Pages URL。
+
+修改 SVG 後，可用 Chromium 重產固定尺寸 PNG：`chromium --headless --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1200,630 --screenshot="$PWD/assets/og-image.png" "file://$PWD/assets/og-image.svg"`。
+
 ## 架構
 
 ```text

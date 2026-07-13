@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>台語新聞朗讀｜Chrome 長輩友善新聞朗讀擴充套件</title>
+  <meta name="description" content="在 Chrome 主動擷取或選取繁體中文新聞，確認後交由已設定的台語語音服務轉換並播放。非商用測試版，支援暫停、續播與本機重播。">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  <meta name="application-name" content="台語新聞朗讀">
+  <meta name="theme-color" content="#155b2c">
+
+  <link rel="canonical" href="https://yazelin.github.io/taigi-news-reader/">
+  <link rel="sitemap" type="application/xml" href="./sitemap.xml">
+  <link rel="icon" href="./extension/assets/icon-source.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./assets/site.css">
+
+  <meta property="og:url" content="https://yazelin.github.io/taigi-news-reader/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="zh_TW">
+  <meta property="og:site_name" content="台語新聞朗讀">
+  <meta property="og:title" content="台語新聞朗讀｜Chrome 長輩友善擴充套件">
+  <meta property="og:description" content="在 Chrome 主動擷取或選取繁體中文新聞，確認後交由已設定的台語語音服務轉換並播放。非商用測試版，支援暫停、續播與本機重播。">
+  <meta property="og:image" content="https://yazelin.github.io/taigi-news-reader/assets/og-image.png">
+  <meta property="og:image:secure_url" content="https://yazelin.github.io/taigi-news-reader/assets/og-image.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="台語新聞朗讀：讓繁體中文新聞文字在 Chrome 確認後轉成台語播放的非商用測試版">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="台語新聞朗讀｜Chrome 長輩友善擴充套件">
+  <meta name="twitter:description" content="在 Chrome 主動擷取或選取繁體中文新聞，確認後交由已設定的台語語音服務轉換並播放。非商用測試版。">
+  <meta name="twitter:image" content="https://yazelin.github.io/taigi-news-reader/assets/og-image.png">
+  <meta name="twitter:image:alt" content="台語新聞朗讀：讓繁體中文新聞文字在 Chrome 確認後轉成台語播放的非商用測試版">
+
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "台語新聞朗讀",
+      "url": "https://yazelin.github.io/taigi-news-reader/",
+      "description": "在 Chrome 主動擷取或選取繁體中文新聞，確認後交由已設定的台語語音服務轉換並播放。",
+      "applicationCategory": "BrowserApplication",
+      "operatingSystem": "Chrome",
+      "inLanguage": "zh-Hant-TW",
+      "image": "https://yazelin.github.io/taigi-news-reader/assets/og-image.png",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "TWD"
+      },
+      "sameAs": "https://github.com/yazelin/taigi-news-reader"
+    }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到主要內容</a>
+
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="台語新聞朗讀首頁">
+      <img src="./extension/assets/icon-source.svg" width="52" height="52" alt="">
+      <span>台語新聞朗讀</span>
+    </a>
+    <nav class="site-nav" aria-label="主要導覽">
+      <a href="#features">功能</a>
+      <a href="#how-it-works">使用方式</a>
+      <a href="https://github.com/yazelin/taigi-news-reader">GitHub</a>
+      <a href="https://github.com/yazelin/taigi-news-reader/blob/main/PRIVACY.md">隱私政策</a>
+    </nav>
+  </header>
+
+  <main id="main-content">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Chrome 擴充套件・非商用測試版</p>
+        <h1 id="hero-title">讓新聞，用台語陪你聽</h1>
+        <p class="lede">主動讀取或選取繁體中文新聞，先確認內容，再交由你設定的台語語音服務轉換並播放。</p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/yazelin/taigi-news-reader#readme">查看專案與測試方式</a>
+          <a class="button" href="https://github.com/yazelin/taigi-news-reader/blob/main/PRIVACY.md">資料怎麼處理</a>
+        </div>
+        <p class="status-line" id="status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>目前為私人測試階段，尚未提供公開商店安裝連結。</span>
+        </p>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="logo-card">
+          <img src="./extension/assets/icon-source.svg" width="330" height="330" alt="">
+          <p>長輩友善・清楚控制</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-section" id="features" aria-labelledby="features-title">
+      <h2 id="features-title">把選擇權留在你手上</h2>
+      <p class="section-intro">套件只在你操作後讀取目前分頁，預覽內容、語音服務與本機保存都由你決定。</p>
+      <div class="feature-grid">
+        <article class="feature-card">
+          <span class="feature-number" aria-hidden="true">1</span>
+          <h3>先預覽，再送出</h3>
+          <p>新聞標題與朗讀文字會先顯示給你確認，不會在背景持續監看瀏覽內容。</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-number" aria-hidden="true">2</span>
+          <h3>語音狀態說清楚</h3>
+          <p>真正的台語 TTS、測試音訊與錯誤狀態會清楚區分，不用華語聲音假裝台語。</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-number" aria-hidden="true">3</span>
+          <h3>本機重播可選擇</h3>
+          <p>重播記錄預設關閉；主動開啟後仍有篇數、容量與保存天數上限，也能隨時清除。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="content-section" id="how-it-works" aria-labelledby="how-title">
+      <h2 id="how-title">三步開始朗讀</h2>
+      <ol class="steps">
+        <li>
+          <div><strong>開啟新聞</strong>由 Chrome 工具列打開台語新聞朗讀側邊欄。</div>
+        </li>
+        <li>
+          <div><strong>讀取並確認</strong>擷取文章正文或使用選取文字，確認標題與內容。</div>
+        </li>
+        <li>
+          <div><strong>開始播放</strong>選擇速度後朗讀，可暫停、繼續、停止或重新播放。</div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="content-section" aria-labelledby="honesty-title">
+      <div class="honesty-note">
+        <h2 id="honesty-title">這是一個仍在驗證中的非商用 MVP</h2>
+        <p>台語翻譯、用詞、腔口與發音仍可能不準確，需要台語母語者與長輩持續試聽。請勿用於緊急、醫療、法律或其他需要逐字正確的內容。</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>台語新聞朗讀・非商用開源測試專案</p>
+    <div class="footer-links">
+      <a href="https://github.com/yazelin/taigi-news-reader">原始碼</a>
+      <a href="https://github.com/yazelin/taigi-news-reader/issues">問題回報</a>
+      <a href="https://github.com/yazelin/taigi-news-reader/blob/main/LICENSE">授權條款</a>
+    </div>
+  </footer>
+</body>
+</html>
