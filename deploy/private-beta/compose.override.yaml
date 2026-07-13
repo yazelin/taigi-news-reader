@@ -1,0 +1,26 @@
+# Merge this small override on top of ../lan/compose.yaml for an Internet-facing
+# beta. It deliberately does not duplicate the backend service definition.
+services:
+  backend:
+    environment:
+      # Defense in depth: the Internet beta never retains the synchronous route.
+      # Strict token mode in the app also rejects startup if this is not false.
+      TAIGI_ALLOW_DIRECT_SYNTHESIS: "false"
+      # The extension currently creates 500-character chunks. Keep a little
+      # contract headroom while bounding translation, audio, and daily spend.
+      TAIGI_MAX_TEXT_CHARS: "600"
+      TAIGI_MAX_TRANSLATED_CHARS: "2000"
+      TAIGI_MAX_AUDIO_BYTES: "16777216"
+      TAIGI_DAILY_SUBJECT_JOB_LIMIT: "20"
+      TAIGI_DAILY_SUBJECT_CHARACTER_LIMIT: "12000"
+      TAIGI_DAILY_GLOBAL_JOB_LIMIT: "100"
+      TAIGI_DAILY_GLOBAL_CHARACTER_LIMIT: "60000"
+    # Fail closed instead of allowing retained/in-flight audio or a provider
+    # fault to consume all RAM on the shared 192.168.11.11 host. Keep swap from
+    # turning memory pressure into an unbounded slow-client resource drain.
+    mem_limit: 2g
+    mem_reservation: 512m
+    memswap_limit: 2g
+    # Four cores keep local MMS practical while preventing one container from
+    # consuming every CPU on a larger shared host.
+    cpus: "4.0"

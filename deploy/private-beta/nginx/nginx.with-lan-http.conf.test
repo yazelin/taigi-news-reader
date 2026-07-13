@@ -1,0 +1,20 @@
+# Integration syntax harness for the documented fast-rollback state: the LAN
+# http-context helpers stay loaded, but only the private-beta locations own the
+# TLS server routes. This still does not test certificates or live Docker DNS.
+worker_processes 1;
+
+events {
+    worker_connections 64;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    include /lan/00-taigi-http.conf.example;
+    include /beta/00-taigi-private-beta-http.conf.example;
+
+    server {
+        listen 8080;
+        server_name ching-tech.ddns.net;
+        include /beta/taigi-private-beta-locations.inc;
+    }
+}

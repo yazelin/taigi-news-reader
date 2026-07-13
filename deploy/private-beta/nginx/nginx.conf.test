@@ -1,0 +1,18 @@
+# Standalone syntax harness. It does not test the target's certificate, other
+# virtual hosts, Docker network membership, or effective real-IP directives.
+worker_processes 1;
+
+events {
+    worker_connections 64;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    include /config/00-taigi-private-beta-http.conf.example;
+
+    server {
+        listen 8080;
+        server_name ching-tech.ddns.net;
+        include /config/taigi-private-beta-locations.inc;
+    }
+}

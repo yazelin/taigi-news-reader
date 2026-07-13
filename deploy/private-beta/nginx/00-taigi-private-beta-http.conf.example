@@ -1,0 +1,60 @@
+# Load this file once from nginx's `http` context. It is intentionally separate
+# from deploy/lan: the private beta is Internet-facing, while the LAN template
+# keeps its subnet allowlist. The Chrome Web Store ID below is public client
+# identity, not authentication; the backend still requires a per-tester Bearer
+# token for every actual /v1 request.
+
+map $http_origin $taigi_beta_origin_allowed {
+    default 0;
+    ~^chrome-extension://nejhlfbnjkbdjcaaklaofggkikdlpakn$ 1;
+}
+
+# Emit only the pinned value. An empty value suppresses the header for absent or
+# untrusted origins, so this never reflects arbitrary client input and never
+# falls back to a wildcard.
+map $http_origin $taigi_beta_cors_origin {
+    default "";
+    ~^chrome-extension://nejhlfbnjkbdjcaaklaofggkikdlpakn$ "chrome-extension://nejhlfbnjkbdjcaaklaofggkikdlpakn";
+}
+
+# Some Chrome extension GET polls do not carry Origin. Require the exact public
+# extension ID header in that case. If Origin is present, it must name the same
+# formal Web Store item.
+map "$http_x_taigi_extension_id|$http_origin" $taigi_beta_identity_allowed {
+    default 0;
+    ~^nejhlfbnjkbdjcaaklaofggkikdlpakn\|$ 1;
+    ~^nejhlfbnjkbdjcaaklaofggkikdlpakn\|chrome-extension://nejhlfbnjkbdjcaaklaofggkikdlpakn$ 1;
+}
+
+# CORS preflight cannot contain the custom identity or Authorization headers it
+# is asking permission to send, so exact Origin may pass the edge gate. Actual
+# requests with no Origin need exact identity; the app independently requires
+# exact identity plus Bearer auth on every /v1 request.
+map "$request_method|$taigi_beta_identity_allowed|$taigi_beta_origin_allowed" $taigi_beta_edge_gate_allowed {
+    default 0;
+    ~^OPTIONS\|[01]\|1$ 1;
+    ~^(?:GET|POST|DELETE)\|1\|[01]$ 1;
+}
+
+# These keys deliberately use nginx's direct connection address. Do not enable
+# real_ip_header or trust client-supplied X-Forwarded-For for this server. If a
+# CDN/load balancer is added later, replace this only after pinning that proxy's
+# documented source ranges and testing the effective client address.
+limit_req_zone $binary_remote_addr zone=taigi_beta_health:1m rate=12r/m;
+limit_req_zone $binary_remote_addr zone=taigi_beta_access:1m rate=12r/m;
+limit_req_zone $binary_remote_addr zone=taigi_beta_create:1m rate=6r/m;
+limit_req_zone $binary_remote_addr zone=taigi_beta_jobs:1m rate=180r/m;
+limit_conn_zone $binary_remote_addr zone=taigi_beta_connections:1m;
+# A second key provides a genuine host-wide ceiling even when abusive traffic
+# is distributed across many source addresses. Per-subject/global app quotas
+# and job/result caps still remain mandatory behind this edge control.
+limit_conn_zone $server_name zone=taigi_beta_global_connections:1m;
+# nginx 1.27.3+ re-resolves the private Docker network alias. The backend must
+# publish no host port and must share only the dedicated edge network with nginx.
+upstream taigi_private_beta_backend {
+    zone taigi_private_beta_backend 64k;
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    resolver_timeout 2s;
+    server taigi-news-reader:8765 resolve;
+    keepalive 8;
+}
