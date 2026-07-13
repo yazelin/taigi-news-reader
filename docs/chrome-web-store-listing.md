@@ -1,8 +1,8 @@
 # Chrome Web Store listing 與 Privacy practices 草稿
 
-稽核日期：2026-07-13
+稽核更新：2026-07-14；live private-beta 證據日期：2026-07-13
 
-這份文件是可貼入 Developer Dashboard 的 release copy。送審前仍須逐項核對實際 package、推薦 endpoint、Groq ZDR 與 [PRIVACY.md](../PRIVACY.md)，不可把草稿直接視為已完成的 Dashboard 設定。
+這份文件是可貼入 Developer Dashboard 的 release copy。Live endpoint、operator-confirmed Groq ZDR、非LAN job與exact `0.1.2` fresh-profile flow已驗證；舊曝光key撤銷仍未明確確認，且ZIP／Authentication information／test instructions尚未更新到Dashboard。不可把repo草稿或工程E2E直接視為已Submit for Review。
 
 ## Store listing
 
@@ -105,4 +105,4 @@ Chrome 在 2026-07-01 公布的 [CWS policy update](https://developer.chrome.com
 6. 開啟本機重播，完成一篇後再次 START；預期 cache hit，不送 `/health` 或 synthesis。從 history 重播也不送 synthesis。清除全部後 history 與 IndexedDB 為空，且 history／player state／job record 不含 invite token。
 7. Review notes 補充：新聞頁只透過 `activeTab` 在使用者操作後讀取；任意 HTTPS pattern 是為 user-selected backend，實際只 runtime-request exact origin；所有 remote responses 都是 data，不是 executable code。套件對 `/health`、POST／GET／DELETE 都帶固定的公開 extension ID header；`/v1/` 另要求逐人 bearer token並綁定 job owner。Header／Origin 不是 secret；server token config 只有 SHA-256 digest＋stable subject。Private beta 只暴露 async routes，direct synthesis 固定 404；另有 per-subject／global UTC daily quotas、delivery lease／job-result caps 及 edge per-IP limits。
 
-送審前先用 isolated Chrome profile 重跑以上流程，並保留 `/health` 無 Authorization、`/v1/access`、authenticated POST／GET／DELETE、cross-subject 404、one-shot terminal result、quota 429、cache hit 與清除證據。Reviewer backend 必須在整個 review 期間穩定可用，edge／backend allowlist 與 CORS 必須包含 Dashboard 分配的正式 extension ID，並套每 IP limits。若服務只允許 operator LAN，仍須先解決 CWS reviewer 從外部無法重現的問題；程式碼已有 authentication／quota 不代表 external endpoint 已部署或驗證。
+2026-07-13 已用 exact `0.1.2` ZIP 的 fresh Chromium profile通過正式ID、原生optional permission、quota、playback／history與replay zero-backend-request；非LAN Tor路徑也完成TLS、`/v1/access`與完整job。送審時仍須以Dashboard實際提供的reviewer token做一次短smoke，確認backend在整個review期間穩定可用，edge／backend與CORS持續pin正式extension ID並套每IP limits。Dashboard Authentication information、test instructions、reviewer credential及ZIP upload完成前，不得宣稱已Submit for Review。

@@ -142,7 +142,7 @@ job creation 與保留的 direct `POST /v1/synthesize` 共用以下 request：
 
 `source_language` / `target_language` 是固定值，`rate` 範圍為 0.5–1.5。direct response 包含 `taigi_text`、`audio_base64`、`mime_type` 與 `provider`；job 完成時相同物件放在 `result`。音訊不得以 data URL 前綴混入 `audio_base64` 欄位。
 
-Private beta只暴露async job routes，並把單次限制縮為600 source characters、2,000 translated characters及16 MiB encoded WAV；每subject每UTC日20 jobs／12,000 characters，全域100 jobs／60,000 characters；container另有2 GiB hard memory/no-swap與4-CPU quota。這些值存在[`deploy/private-beta/`](../deploy/private-beta/README.md)的已測範本中，尚未部署到`.11`，也不能換算成固定音訊秒數。
+Private beta只暴露async job routes，並把單次限制縮為600 source characters、2,000 translated characters及16 MiB encoded WAV；每subject每UTC日20 jobs／12,000 characters，全域100 jobs／60,000 characters；container另有2 GiB hard memory/no-swap與4-CPU quota。這些值由[`deploy/private-beta/`](../deploy/private-beta/README.md)定義並於2026-07-13套用到`.11` live profile；16 MiB仍不能換算成固定音訊秒數。
 
 ### Provider adapters
 

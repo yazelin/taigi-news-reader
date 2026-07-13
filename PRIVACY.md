@@ -20,7 +20,7 @@
 
 私人測試版的推薦服務是設定頁明確顯示的 `https://ching-tech.ddns.net/taigi-tts`。它接收使用者確認的新聞純文字，透過 Groq inference 產生台語翻譯，再由伺服器上的台語 TTS 產生音訊。Groq 是此流程中接收新聞文字的外部處理者；TTS 在推薦服務的伺服器執行，不把新聞文字交給另一個 TTS API。Provider identity 會由 `/health` 回傳並顯示於本機重播記錄，若實際 provider 改變，本政策也必須先更新。
 
-提交任何會讓 CWS reviewer、private testers 或一般使用者接觸推薦服務的版本前，營運方必須在 Groq Console 對推薦服務所用 organization／project 啟用 Zero Data Retention（ZDR）、輪替成未曾暴露的新 API key，並重新實測推薦 endpoint。Groq 的官方資料說明指出，inference 預設不保留 customer inputs／outputs，但可靠性或 abuse 調查在未啟用 ZDR 時仍可能暫存最多 30 天；啟用 ZDR 後不會為這些目的保留 customer data。Groq 仍保存不含 customer inputs／outputs 的 usage metadata。Groq 的服務協議另明定，除非客戶明確授權，Inputs／Outputs 不用於訓練或 fine-tuning 模型。詳見 [Groq 資料控制說明](https://console.groq.com/docs/your-data) 與 [Groq Services Agreement](https://console.groq.com/docs/legal/services-agreement)。若上述 ZDR、key rotation 與 endpoint 驗證尚未完成，本專案不應提交或發佈推薦服務。
+2026-07-13，operator 已在 Groq Console 人工確認推薦服務所用 production project 啟用 Zero Data Retention（ZDR），replacement API key 也已由成功 live job 證明正在使用；但先前曾曝光 key 是否已撤銷仍未獲得明確確認。Groq 的官方資料說明指出，inference 預設不保留 customer inputs／outputs，但可靠性或 abuse 調查在未啟用 ZDR 時仍可能暫存最多 30 天；啟用 ZDR 後不會為這些目的保留 customer data。Groq 仍保存不含 customer inputs／outputs 的 usage metadata。Groq 的服務協議另明定，除非客戶明確授權，Inputs／Outputs 不用於訓練或 fine-tuning 模型。詳見 [Groq 資料控制說明](https://console.groq.com/docs/your-data) 與 [Groq Services Agreement](https://console.groq.com/docs/legal/services-agreement)。提交或發佈前仍須明確確認舊 key 已撤銷；replacement active 不能被當成撤銷證據。
 
 Repo 仍保留 Gemini adapter 供自行架設後端的人選用，但 Chrome Web Store 公開版不以 Gemini unpaid quota 作為推薦服務。Google 的 Gemini API 條款說明，Unpaid Services 的 inputs／outputs可能被用於改善 Google 產品，且可能由 human reviewers 處理；這與本專案的公開版資料最小化目標及 Chrome Web Store Limited Use 審查有額外風險。自行改用 Gemini 或其他 provider 的後端營運方，必須另行揭露實際接收者、方案、保存、人工存取及刪除政策，並在傳送前取得適用的同意。詳見 [Gemini API Additional Terms](https://ai.google.dev/gemini-api/terms)。
 
@@ -52,7 +52,7 @@ Repo 仍保留 Gemini adapter 供自行架設後端的人選用，但 Chrome Web
 
 推薦服務使用 HTTPS；擴充套件拒絕一般明文 HTTP，只允許使用者為同機開發目的選擇 `localhost`／`127.0.0.1`。Provider keys 只存在 backend secret，不會包進擴充套件或送到 Chrome。私人邀請碼只能授權本服務的受限 `/v1/` 功能；它不會讓使用者取得或直接呼叫營運方的 Groq／Gemini provider key。
 
-`X-Taigi-Extension-Id` 與瀏覽器可能送出的 `Origin` 都是公開識別資料，非瀏覽器 client 可以偽造，不能視為使用者驗證或安全祕密。私人測試的真正應用層驗證是逐人、可撤銷的邀請碼；edge 另以每 IP request／connection limits、request size limits、HTTPS，以及 backend 的每日配額、active／outstanding jobs 與 terminal bytes caps 降低濫用風險。Private-beta 範本另限制 600 source characters、2,000 translated characters、16 MiB audio，每 subject 每 UTC 日 20 jobs／12,000 characters與全域100 jobs／60,000 characters，以及2 GiB container memory/no-swap與4 CPUs，並強制關閉direct synthesis；這些控制已存在repo並有自動檢查，但尚未部署到`.11`。`/health`不接收邀請碼，只套獨立edge limits。正式外網上線前仍須完成ZDR、provider key rotation、外部可達性、production logging／監控與live abuse測試，並依公開onboarding／account模式重新檢查本政策。
+`X-Taigi-Extension-Id` 與瀏覽器可能送出的 `Origin` 都是公開識別資料，非瀏覽器 client 可以偽造，不能視為使用者驗證或安全祕密。私人測試的真正應用層驗證是逐人、可撤銷的邀請碼；edge 另以每 IP request／connection limits、request size limits、HTTPS，以及 backend 的每日配額、active／outstanding jobs 與 terminal bytes caps 降低濫用風險。Private-beta profile 限制 600 source characters、2,000 translated characters、16 MiB audio，每 subject 每 UTC 日 20 jobs／12,000 characters與全域100 jobs／60,000 characters，以及2 GiB container memory/no-swap與4 CPUs，並強制關閉direct synthesis；2026-07-13 已部署到`.11`，且從非LAN Tor路徑通過TLS、access與完整job smoke。`/health`不接收邀請碼，只套獨立edge limits。服務仍須持續監控並確認舊provider key撤銷；若未來改成公開onboarding／account模式，必須重新檢查本政策與安全邊界。
 
 本專案對從 Chrome APIs 取得資訊的使用遵守 Chrome Web Store User Data Policy，包括 Limited Use requirements。詳見 [Chrome Web Store Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use)。
 

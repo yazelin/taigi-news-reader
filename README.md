@@ -27,7 +27,7 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 這條 async-job 路徑已完成 Chromium 150 final：37.01 秒 fixture 合成期間 UI 仍是 `preparing`、service worker 全程存活，完成 37 次短 GET 且 backend 維持 1 個 active job；按 STOP 後 DELETE 回報 `found=true`，active job 歸零且 session 中的 active job id 已清除。真實 Gemini 3.5 Flash + 本機 MMS 的 116 字新聞也從 START 在 50.25 秒進入 `playing`，完成 job 隨即 DELETE，offscreen 成功播放音訊；PAUSE／RESUME／STOP 狀態與 backend cleanup 均通過。
 
-目前 `0.1.2` 工程基線為 extension `82/82` tests 加 ESLint／production build、backend `166 passed`，並已產生可重現的正式 ID artifact `extension/release/taigi-news-reader-0.1.2.zip`：50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。這證明 source、automated contract 與 package checks 通過，不等於 private-beta ingress 已部署、外部 reviewer E2E 已完成或該 ZIP 已上傳 Chrome Web Store。
+目前 `0.1.2` 工程基線為 extension `82/82` tests 加 ESLint／production build、backend `166 passed`，並已產生可重現的正式 ID artifact `extension/release/taigi-news-reader-0.1.2.zip`：50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。Private-beta ingress、非 LAN 完整工作與 exact-package fresh-profile Chromium E2E 也已通過；這仍不等於 ZIP 已上傳 Chrome Web Store、Dashboard disclosure 已完成或已按 Submit for Review。
 
 更完整的元件邊界與正式環境方向見 [docs/architecture.md](docs/architecture.md)。
 目前已實際驗證到哪裡、哪些仍待真人測試，見 [docs/validation.md](docs/validation.md)。
@@ -36,15 +36,15 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 擴充套件目前內建的建議 URL 是 `https://ching-tech.ddns.net/taigi-tts`。`0.1.2` source 已實作每位測試者各自的邀請碼、配額與工作隔離。邀請碼不是 Groq／Gemini provider key：明碼只存在該 Chrome profile 的 `chrome.storage.local`，綁定設定的 backend origin，並只以 `Authorization: Bearer …` 送到同 origin 的 `/v1/`。Server 只設定 SHA-256 digest 與穩定假名 subject；任何把共用 provider key 或共用邀請碼包進 extension ZIP 的作法都會讓安裝者取得它，禁止採用。
 
-目前只完成下述 LAN pilot；authentication／quota、private-beta ingress 範本與 exact `0.1.2` package 已完成 repo 內驗證，但 ingress **尚未部署到 `.11`**，外部 reviewer E2E 也尚未執行。開發包預設不會自動選用推薦服務；使用者必須在設定頁主動選擇服務、輸入管理者個別提供的邀請碼並通過 `/v1/access` 驗證。若要送出 private trusted-testers 版本，營運方仍必須：
+2026-07-13 已把 [`deploy/private-beta/`](deploy/private-beta/README.md) profile 套用到 `192.168.11.11`。推薦 HTTPS endpoint 現在由 strict invite-token Groq＋MMS backend 提供服務；backend 維持單一 worker、沒有 host publish port，使用 durable quota database，container 限 2 GiB memory、沒有額外 swap、4 CPUs。Server 已載入兩個不同的假名 subject，不在 repo 或證據中保存 raw token／digest。開發包仍不會自動選用推薦服務；使用者必須在設定頁主動選擇服務、輸入管理者個別提供的邀請碼並通過 `/v1/access` 驗證。
 
-2026-07-13 已把 concrete Groq＋MMS backend 部署到 `192.168.11.11`，由上述 HTTPS URL 反向代理，且只允許可信 `192.168.11.0/24` LAN。Dashboard public key 已固定 `0.1.1` 的正式 CWS ID `nejhlfbnjkbdjcaaklaofggkikdlpakn`；exact `0.1.1` ZIP 也已用全新 Chrome profile 通過原生 optional permission、真實 Groq＋MMS 播放完成、history 與零 API 快取重播。Edge／backend 在現有安裝遷移期同時接受正式 ID 與舊 unpacked ID。這只維持兩種安裝的後端連線；Chrome 會把兩個 ID 視為不同 extension origin，因此舊版設定與本機重播不會自動移到正式版，使用者須重新選定服務並重新開啟重播。它另已通過 health、strict extension ID／Origin、短句與 80 字新聞的真實 WAV／cleanup smoke。Backend 沒有 publish host port。這是家用 LAN pilot，不是可供外部 Chrome Web Store reviewer 或一般公網使用者使用的服務；詳見 [部署 runbook](deploy/lan/README.md) 與 [驗證紀錄](docs/validation.md)。
+Live edge／backend 已驗證正式 extension ID 與 CORS pinning、缺少／錯誤 credential 的 401、cross-subject ownership 404、實際每日配額 429、direct synthesis 404，以及 600 source characters／2,000 translated characters／16 MiB audio 的 request caps。從 operator LAN 外經 Tor 出口完成 TLS、`/v1/access` 與完整 Groq＋MMS job，證明不再只是 LAN pilot。Exact `0.1.2` ZIP 也已在 fresh Chromium profile 以正式 ID 通過原生 optional permission、quota 顯示、真實播放、history 與 replay zero-backend-request；完整證據見 [驗證紀錄](docs/validation.md)。
 
-1. 提供可供預定測試者與 CWS reviewer 安全存取的 HTTPS 後端路徑，設定真正支援台語且授權符合非商用用途的 translator / TTS providers；目前 LAN pilot 在 server 使用 MMS reference。
-2. 為每位測試者產生高熵、可撤銷的不同邀請碼；server 只保存 `subject=SHA-256 digest`，並啟用每 subject／全域 UTC 日工作數與字元數配額。SQLite 只保存日期、subject、工作數、字元數，不保存新聞、音訊或 token。
-3. 依 [`deploy/private-beta/`](deploy/private-beta/README.md) 範本維持正式 extension ID pinning，對 `/v1/` 同時檢查 bearer credential、`X-Taigi-Extension-Id` 與存在時的 Origin；edge 另套每 IP request／connection limit，backend 套 active／outstanding job 與 terminal-result bytes caps。私人 beta 固定單一 worker，因 job registry 仍是 process-local memory。
-4. Private beta 把單次 request 限為 600 source characters、2,000 translated characters、16 MiB audio，每 subject 每 UTC 日 20 jobs／12,000 characters、全域 100 jobs／60,000 characters，container 限 2 GiB memory／no swap 與 4 CPUs；這些是已測的 Compose／nginx 範本值，不是 `.11` 目前 live 狀態，也不是音訊秒數保證。
-5. 完成 Groq ZDR、輪替所有曾曝光的 provider keys、external reachability、production logging／monitoring 與 live abuse smoke，再把 `0.1.2` exact ZIP 上傳並送 Private trusted testers 審查。
+Operator 已在 Groq Console 人工確認 production project 啟用 ZDR，且 replacement provider key 正在供應成功請求；但先前曾曝光 key 是否已撤銷仍未取得明確確認，因此不能把 key-rotation gate 標成完整結案。CWS 端也仍須：
+
+1. 明確確認舊 provider key 已撤銷，留下不含 key／新聞內容的時間與操作者證據。
+2. 在 Dashboard 勾選 Authentication information，更新 test instructions，並只透過 reviewer credential 欄提供一組個別、可撤銷且有足額 quota 的 token。
+3. 人工上傳已驗證的 exact `0.1.2` ZIP，核對 version／bytes／SHA-256。完成這些步驟前不得宣稱已 Submit for Review、已通過審查或已發佈。
 
 私人測試者安裝後，在設定頁填入營運方提供的 HTTPS URL 與自己的邀請碼；之後開啟新聞、選取文字或讓套件擷取正文，再按朗讀即可。若未設定、邀請碼被撤銷、配額已滿或後端無法連線，套件必須明確提示對應問題，不得默默改接不明遠端服務或華語 voice。
 
@@ -111,11 +111,11 @@ docker run --rm --env-file backend/.env.production \
   -p 127.0.0.1:8765:8765 taigi-news-reader-backend
 ```
 
-再由同機 HTTPS reverse proxy 或受管理平台提供服務。外部 reviewer endpoint 必須先完成逐人 authentication、每日與 process caps、每 IP edge limits、監控與明確隱私政策；不要直接把開發用 Uvicorn port 暴露到公網。`deploy/private-beta/` 已提供並自動測試 fail-closed ingress／resource-limit 範本，但尚未套用到 `.11`，也沒有外網 smoke 證據。
+再由同機 HTTPS reverse proxy 或受管理平台提供服務。外部 reviewer endpoint 必須維持逐人 authentication、每日與 process caps、每 IP edge limits、監控與明確隱私政策；不要直接把開發用 Uvicorn port 暴露到公網。`deploy/private-beta/` 的 fail-closed ingress／resource-limit profile 已套用到 `.11`，並已從非 LAN Tor 路徑通過 TLS、access 與完整 job smoke；這是 2026-07-13 的 operational evidence，不代表後續監控或 reviewer credential 可以省略。
 
 ### 從私人測試升級為公開版
 
-Private trusted testers 與 Public 可以使用同一個 Chrome Web Store item；不需建立另一個 extension ID。Dashboard 已儲存 Private distribution 並把 publisher account 加入 trusted testers；`0.1.2` exact ZIP 也已產生，但尚未上傳。私人版仍須先完成 ZDR／key rotation、live ingress 與外部 E2E 等 P0，再上傳同一 item 送審。通過後只把各自的高熵邀請碼私下交給列入 trusted testers 的人，不把 token 放進 ZIP、商店文案或公開 issue。
+Private trusted testers 與 Public 可以使用同一個 Chrome Web Store item；不需建立另一個 extension ID。Dashboard 已儲存 Private distribution 並把 publisher account 加入 trusted testers；live ingress、operator-confirmed ZDR、非 LAN job 與 exact `0.1.2` fresh-profile E2E 已完成，但該 ZIP 尚未上傳。私人版仍須確認舊 provider key 已撤銷，完成 Authentication information／test instructions／reviewer credential，人工上傳同一 item 後才能考慮送審。通過後只把各自的高熵邀請碼私下交給列入 trusted testers 的人，不把 token 放進 ZIP、商店文案或公開 issue。
 
 公開升版時維持同一 item ID，再將 manifest／package 版本提升（例如 `0.1.3`），上傳新 ZIP、更新 privacy／listing／review notes 並重新送審，之後才把 distribution 改成 Public。相同 item ID 讓已安裝的私人版可正常自動更新；本機設定與重播資料也保留，但若公開版更換 authentication 模式，必須提供明確 migration／sign-out 並安全清除舊 invite token。
 
