@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>台語新聞朗讀設定</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <h1>台語新聞朗讀設定</h1>
+    <section class="card">
+      <h2>台語語音服務</h2>
+      <p>請填入可信任的語音服務網址。新聞文字只會在你確認朗讀後，傳送到這個服務。</p>
+      <label for="backendUrl">台語語音服務網址</label>
+      <input id="backendUrl" type="url" inputmode="url" placeholder="https://tts.example.com" autocomplete="url">
+      <p class="hint">正式服務必須使用 HTTPS。本機開發可用 <code>http://127.0.0.1:8765</code> 或 <code>http://localhost:8765</code>。</p>
+      <div class="actions">
+        <button id="saveButton" class="primary" type="button">儲存並測試連線</button>
+        <button id="clearButton" type="button">清除設定</button>
+      </div>
+      <div id="status" role="status" aria-live="polite" hidden></div>
+    </section>
+    <section class="privacy">
+      <h2>權限與隱私</h2>
+      <p>儲存時，Chrome 只會詢問你是否允許連線到上方指定的服務網域。本擴充套件不會要求讀取所有網站的永久權限。</p>
+    </section>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

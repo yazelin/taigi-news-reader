@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# JavaScript
+node_modules/
+coverage/
+dist/
+
+# Local models, generated audio, and caches
+.cache/
+models/
+*.wav
+*.mp3
+*.ogg
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

@@ -1,0 +1,26 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif;
+  font-size: 19px;
+  color: #17211a;
+  background: #f3f7f3;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(760px, calc(100% - 32px)); margin: 36px auto; }
+h1 { font-size: 2rem; }
+h2 { margin-top: 0; }
+p { line-height: 1.6; }
+.card, .privacy { margin: 20px 0; padding: 26px; border: 2px solid #234d31; border-radius: 14px; background: #fff; box-shadow: 0 4px 0 #c6d5c9; }
+label { display: block; margin: 18px 0 7px; font-weight: 800; }
+input, button { min-height: 52px; border: 2px solid #294532; border-radius: 9px; font: inherit; }
+input { width: 100%; padding: 11px; }
+button { padding: 10px 18px; background: #fff; color: #173b25; font-weight: 800; cursor: pointer; }
+.primary { color: #fff; background: #155b2c; }
+.actions { display: flex; gap: 12px; margin-top: 18px; }
+.hint { color: #405347; font-size: .9rem; }
+#status { padding: 13px; margin-top: 18px; border: 2px solid #285580; border-radius: 9px; background: #edf6ff; color: #173e65; font-weight: 800; }
+#status.error { border-color: #852727; background: #fff0f0; color: #681919; }
+button:focus-visible, input:focus-visible { outline: 4px solid #ffbf00; outline-offset: 2px; }
+[hidden] { display: none !important; }
+@media (max-width: 520px) { .actions { flex-direction: column; } }

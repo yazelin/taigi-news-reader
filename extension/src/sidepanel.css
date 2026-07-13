@@ -1,0 +1,43 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif;
+  font-size: 18px;
+  color: #17211a;
+  background: #f4f7f3;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+main { padding: 18px; }
+.app-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+h1 { margin: 0; font-size: 1.55rem; line-height: 1.2; }
+h2 { margin: 0 0 10px; font-size: 1.2rem; }
+p { line-height: 1.55; }
+.eyebrow { margin: 0 0 3px; color: #315b3b; font-weight: 800; font-size: .8rem; }
+.card { padding: 18px; margin-bottom: 16px; border: 2px solid #1e4930; border-radius: 14px; background: #fff; box-shadow: 0 3px 0 #c6d5c9; }
+.card p:first-of-type { margin-top: 0; }
+.setup { border-color: #9a4d00; background: #fff8e8; }
+button, input, textarea, select { width: 100%; min-height: 48px; font: inherit; border-radius: 9px; }
+button { padding: 10px 14px; border: 2px solid #173b25; background: #fff; color: #173b25; font-weight: 800; cursor: pointer; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 4px solid #ffbf00; outline-offset: 2px; }
+button:disabled { opacity: .48; cursor: not-allowed; }
+.primary { background: #155b2c; color: #fff; }
+.primary:hover { background: #0d4721; }
+.secondary { background: #fff; }
+.danger { border-color: #832626; color: #832626; }
+.icon-button { width: auto; min-height: 44px; }
+.full { margin-top: 4px; }
+label, legend { display: block; margin: 13px 0 6px; font-weight: 800; }
+input, textarea, select { padding: 10px; border: 2px solid #44554a; color: #17211a; background: #fff; }
+textarea { resize: vertical; line-height: 1.55; }
+fieldset { margin: 13px 0; border: 2px solid #879389; border-radius: 9px; }
+.choice { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-weight: 600; }
+.choice input { width: 26px; min-height: 26px; }
+.confirm-note { padding: 10px; border-left: 5px solid #da8b00; background: #fff5d7; }
+.message { padding: 12px; margin-bottom: 16px; border-radius: 9px; border: 2px solid #852727; background: #fff0f0; color: #681919; font-weight: 800; line-height: 1.5; }
+.message.info { border-color: #285580; background: #edf6ff; color: #173e65; }
+.muted { color: #45564a; font-size: .9rem; }
+.progress { padding: 12px; background: #e9f2eb; border-radius: 9px; font-weight: 800; }
+.controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.controls button { padding-inline: 5px; }
+[hidden] { display: none !important; }

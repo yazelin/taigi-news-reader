@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "台語新聞朗讀",
+  "version": "0.1.0",
+  "description": "把目前新聞頁面的繁體中文轉成自然台語並朗讀。",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "sidePanel",
+    "offscreen",
+    "storage"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "action": {
+    "default_title": "開啟台語新聞朗讀"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

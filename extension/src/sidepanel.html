@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>台語新聞朗讀</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <main>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">長輩友善</p>
+        <h1>台語新聞朗讀</h1>
+      </div>
+      <button id="settingsButton" class="icon-button" type="button" aria-label="開啟設定">設定</button>
+    </header>
+
+    <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+
+    <section id="setupCard" class="card setup" hidden>
+      <h2>請先設定語音服務</h2>
+      <p>設定完成後，才能把新聞轉成台語語音。</p>
+      <button id="setupButton" class="primary" type="button">前往設定</button>
+    </section>
+
+    <section class="card">
+      <h2>一、讀取新聞</h2>
+      <p>先開啟新聞頁面，再按下面的按鈕。</p>
+      <button id="extractButton" class="primary" type="button">讀取這一頁</button>
+    </section>
+
+    <section id="previewCard" class="card" hidden>
+      <h2>二、確認內容</h2>
+      <label for="title">新聞標題</label>
+      <input id="title" type="text" maxlength="200">
+
+      <fieldset id="sourceChooser" hidden>
+        <legend>要朗讀哪一段？</legend>
+        <label class="choice"><input name="source" value="article" type="radio" checked> 新聞全文</label>
+        <label class="choice"><input name="source" value="selection" type="radio"> 我選取的文字</label>
+      </fieldset>
+
+      <label for="preview">朗讀內容</label>
+      <textarea id="preview" rows="10"></textarea>
+      <p id="textStats" class="muted"></p>
+
+      <label for="rate">朗讀速度</label>
+      <select id="rate">
+        <option value="0.75">慢速 0.75 倍</option>
+        <option value="1" selected>一般 1 倍</option>
+        <option value="1.25">快速 1.25 倍</option>
+      </select>
+
+      <p class="confirm-note">內容確認無誤後，才會送到語音服務。</p>
+      <button id="startButton" class="primary start" type="button">確認並開始朗讀</button>
+    </section>
+
+    <section id="playerCard" class="card player" hidden>
+      <h2>播放控制</h2>
+      <p id="progress" class="progress">準備中…</p>
+      <div class="controls">
+        <button id="pauseButton" type="button">暫停</button>
+        <button id="resumeButton" type="button">繼續</button>
+        <button id="stopButton" class="danger" type="button">停止</button>
+      </div>
+    </section>
+
+    <button id="clearButton" class="secondary full" type="button">清除本次內容</button>
+  </main>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
