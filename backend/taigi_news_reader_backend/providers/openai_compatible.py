@@ -17,15 +17,25 @@ GROQ_GPT_OSS_MODELS = frozenset(
 )
 
 
-class _EmptyTranslationError(ProviderError):
-    """An otherwise valid completion response contained no translation text."""
+class _RetryableTranslationError(ProviderError):
+    """A completion response was valid JSON but not a complete translation."""
 
-    def __init__(self, provider_label: str, finish_reason: str | None) -> None:
+    def __init__(
+        self,
+        provider_label: str,
+        *,
+        kind: str,
+        finish_reason: str | None,
+    ) -> None:
+        self.kind = kind
         self.finish_reason = finish_reason
         suffix = f" (finish_reason={finish_reason})" if finish_reason else ""
-        super().__init__(
-            f"{provider_label} returned an empty translation" + suffix
-        )
+        messages = {
+            "empty": "returned an empty translation",
+            "incomplete": "returned an incomplete translation",
+            "output_limit": "translation exceeded the output limit",
+        }
+        super().__init__(f"{provider_label} {messages[kind]}" + suffix)
 
 
 def _safe_finish_reason(value: object) -> str | None:
@@ -65,27 +75,15 @@ class OpenAICompatibleTranslator:
     async def translate(self, text: str) -> str:
         prompt = (
             "Translate the following JSON string containing a Traditional "
-            "Chinese news passage:\n"
+            "Chinese news passage. Do not repeat any sentence, phrase, word, "
+            "or syllable. End immediately after translating the final source "
+            "sentence:\n"
             + json.dumps(text, ensure_ascii=False)
         )
-        try:
-            translation = await self._generate(system=SYSTEM_PROMPT, prompt=prompt)
-        except _EmptyTranslationError as first_empty:
-            try:
-                # Retry the same translation request once. Do not substitute
-                # provider reasoning, another provider, or source-language text.
-                translation = await self._generate(
-                    system=SYSTEM_PROMPT,
-                    prompt=prompt,
-                )
-            except _EmptyTranslationError as retry_empty:
-                first_reason = first_empty.finish_reason or "unavailable"
-                retry_reason = retry_empty.finish_reason or "unavailable"
-                raise ProviderError(
-                    f"{self._provider_label} returned an empty translation "
-                    "twice after one retry "
-                    f"(finish_reason: first={first_reason}, retry={retry_reason})"
-                ) from retry_empty
+        translation = await self._generate_with_retry(
+            system=SYSTEM_PROMPT,
+            prompt=prompt,
+        )
         try:
             return normalize_and_validate_mms_poj(
                 translation, provider=self._provider_label
@@ -93,9 +91,11 @@ class OpenAICompatibleTranslator:
         except ProviderError:
             repair_prompt = (
                 "Repair this JSON string containing the invalid translation:\n"
+                "Return one repaired copy only. Do not repeat any sentence, "
+                "phrase, word, or syllable:\n"
                 + json.dumps(translation, ensure_ascii=False)
             )
-            repaired = await self._generate(
+            repaired = await self._generate_with_retry(
                 system=REPAIR_SYSTEM_PROMPT,
                 prompt=repair_prompt,
             )
@@ -109,6 +109,24 @@ class OpenAICompatibleTranslator:
                     "POJ after one repair attempt"
                 ) from exc
 
+    async def _generate_with_retry(self, *, system: str, prompt: str) -> str:
+        try:
+            return await self._generate(system=system, prompt=prompt)
+        except _RetryableTranslationError as first_error:
+            try:
+                # Retry the identical request once. Never substitute provider
+                # reasoning, another provider, or source-language text.
+                return await self._generate(system=system, prompt=prompt)
+            except _RetryableTranslationError as retry_error:
+                first_reason = first_error.finish_reason or "unavailable"
+                retry_reason = retry_error.finish_reason or "unavailable"
+                raise ProviderError(
+                    f"{self._provider_label} failed to return a complete "
+                    "translation after one retry "
+                    f"(first={first_error.kind}:{first_reason}, "
+                    f"retry={retry_error.kind}:{retry_reason})"
+                ) from retry_error
+
     async def _generate(self, *, system: str, prompt: str) -> str:
         payload = {
             "model": self.model,
@@ -120,10 +138,13 @@ class OpenAICompatibleTranslator:
         }
         # Groq's GPT-OSS models otherwise spend the default completion budget
         # on hidden reasoning and can return HTTP 200 with empty content and
-        # finish_reason=length. These fields are model-specific extensions, so
-        # never send them to a generic OpenAI-compatible provider.
+        # finish_reason=length. Groq also recommends a 0.5-0.7 temperature for
+        # reasoning models to avoid repetitive or incoherent output. These
+        # fields are model-specific extensions, so never send them to a generic
+        # OpenAI-compatible provider.
         if self.model in GROQ_GPT_OSS_MODELS:
             payload.update(
+                temperature=0.6,
                 reasoning_effort="low",
                 include_reasoning=False,
                 max_completion_tokens=8_192,
@@ -142,15 +163,31 @@ class OpenAICompatibleTranslator:
                 f"{self._provider_label} translation request failed"
             ) from exc
         if translation is None:
-            raise _EmptyTranslationError(self._provider_label, finish_reason)
+            raise _RetryableTranslationError(
+                self._provider_label,
+                kind="empty",
+                finish_reason=finish_reason,
+            )
         if not isinstance(translation, str):
             raise ProviderError(f"{self._provider_label} returned no translation")
+        if finish_reason == "length" and translation.strip():
+            raise _RetryableTranslationError(
+                self._provider_label,
+                kind="incomplete",
+                finish_reason=finish_reason,
+            )
         translation = OllamaTranslator._clean_response(translation)
-        if not translation:
-            raise _EmptyTranslationError(self._provider_label, finish_reason)
         if len(translation) > self.max_output_chars:
-            raise ProviderError(
-                f"{self._provider_label} translation exceeded the output limit"
+            raise _RetryableTranslationError(
+                self._provider_label,
+                kind="output_limit",
+                finish_reason=finish_reason,
+            )
+        if not translation:
+            raise _RetryableTranslationError(
+                self._provider_label,
+                kind="empty",
+                finish_reason=finish_reason,
             )
         return translation
 

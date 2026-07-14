@@ -188,6 +188,8 @@ async def test_gemini_errors_use_gemini_identity():
     with pytest.raises(ProviderError) as captured:
         await provider.translate("新聞")
 
-    assert str(captured.value).startswith("Gemini returned an empty translation")
+    assert str(captured.value).startswith(
+        "Gemini failed to return a complete translation after one retry"
+    )
     assert "OpenAI-compatible" not in str(captured.value)
     await client.aclose()

@@ -48,6 +48,8 @@ async def test_openai_compatible_translator_uses_chat_completions_contract():
     assert seen["authorization"] == "Bearer secret"
     assert seen["body"]["model"] == "translator-model"
     assert set(seen["body"]) == {"model", "messages", "temperature"}
+    assert seen["body"]["temperature"] == 0.1
+    assert "Do not repeat any sentence" in seen["body"]["messages"][1]["content"]
     await client.aclose()
 
 
@@ -89,7 +91,7 @@ async def test_groq_gpt_oss_gets_model_specific_reasoning_budget(model):
         {
             "model": model,
             "messages": payloads[0]["messages"],
-            "temperature": 0.1,
+            "temperature": 0.6,
             "reasoning_effort": "low",
             "include_reasoning": False,
             "max_completion_tokens": 8_192,
@@ -187,9 +189,168 @@ async def test_openai_compatible_two_empty_contents_fail_after_one_retry():
         await provider.translate("新聞")
 
     assert calls == 2
-    assert "empty translation twice after one retry" in str(captured.value)
-    assert "first=length" in str(captured.value)
-    assert "retry=stop" in str(captured.value)
+    assert "failed to return a complete translation after one retry" in str(
+        captured.value
+    )
+    assert "first=empty:length" in str(captured.value)
+    assert "retry=empty:stop" in str(captured.value)
+    await client.aclose()
+
+
+async def test_openai_compatible_retries_nonempty_length_then_succeeds():
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {"content": "tâi-gí sin-bûn"},
+                    }
+                ]
+            },
+            {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": "tâi-gí sin-bûn lâi--ah"},
+                    }
+                ]
+            },
+        ]
+    )
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json=next(responses))
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://provider.test/v1/",
+    )
+    provider = OpenAICompatibleTranslator(
+        base_url="https://unused",
+        api_key="secret",
+        model="translator-model",
+        timeout_seconds=1,
+        max_output_chars=100,
+        client=client,
+    )
+
+    assert await provider.translate("新聞") == "tâi-gí sin-bûn lâi--ah"
+    assert calls == 2
+    await client.aclose()
+
+
+async def test_openai_compatible_retries_raw_output_limit_then_succeeds():
+    responses = iter(
+        [
+            {"choices": [{"message": {"content": "a" * 101}}]},
+            {"choices": [{"message": {"content": "tâi-gí sin-bûn"}}]},
+        ]
+    )
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json=next(responses))
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://provider.test/v1/",
+    )
+    provider = OpenAICompatibleTranslator(
+        base_url="https://unused",
+        api_key="secret",
+        model="translator-model",
+        timeout_seconds=1,
+        max_output_chars=100,
+        client=client,
+    )
+
+    assert await provider.translate("新聞") == "tâi-gí sin-bûn"
+    assert calls == 2
+    await client.aclose()
+
+
+async def test_openai_compatible_two_retryable_limits_fail_without_content_leak():
+    secret_output = "secret-output-marker-" * 20
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {"content": "tâi-gí"},
+                    }
+                ]
+            },
+            {"choices": [{"message": {"content": secret_output}}]},
+        ]
+    )
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json=next(responses))
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://provider.test/v1/",
+    )
+    provider = OpenAICompatibleTranslator(
+        base_url="https://unused",
+        api_key="secret",
+        model="translator-model",
+        timeout_seconds=1,
+        max_output_chars=100,
+        client=client,
+    )
+
+    with pytest.raises(ProviderError) as captured:
+        await provider.translate("新聞")
+
+    assert calls == 2
+    assert "first=incomplete:length" in str(captured.value)
+    assert "retry=output_limit:unavailable" in str(captured.value)
+    assert "secret-output-marker" not in str(captured.value)
+    await client.aclose()
+
+
+async def test_openai_compatible_retries_repair_output_limit_then_succeeds():
+    responses = iter(
+        [
+            {"choices": [{"message": {"content": "invalid"}}]},
+            {"choices": [{"message": {"content": "a" * 101}}]},
+            {"choices": [{"message": {"content": "tâi-gí sin-bûn"}}]},
+        ]
+    )
+    payloads: list[dict[str, object]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return httpx.Response(200, json=next(responses))
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://provider.test/v1/",
+    )
+    provider = OpenAICompatibleTranslator(
+        base_url="https://unused",
+        api_key="secret",
+        model="translator-model",
+        timeout_seconds=1,
+        max_output_chars=100,
+        client=client,
+    )
+
+    assert await provider.translate("新聞") == "tâi-gí sin-bûn"
+    assert len(payloads) == 3
+    assert payloads[1] == payloads[2]
+    assert "Return one repaired copy only" in payloads[1]["messages"][1]["content"]
     await client.aclose()
 
 
@@ -266,7 +427,11 @@ async def test_openai_compatible_enforces_exact_output_character_boundary(
 ):
     translation = "a" * output_length
 
+    calls = 0
+
     async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
         return httpx.Response(
             200,
             json={"choices": [{"message": {"content": translation}}]},
@@ -286,10 +451,14 @@ async def test_openai_compatible_enforces_exact_output_character_boundary(
     )
 
     if exceeds_limit:
-        with pytest.raises(ProviderError, match="exceeded the output limit"):
+        with pytest.raises(
+            ProviderError, match="failed to return a complete translation"
+        ):
             await provider.translate("新聞")
+        assert calls == 2
     else:
         assert await provider.translate("新聞") == translation
+        assert calls == 1
     await client.aclose()
 
 
