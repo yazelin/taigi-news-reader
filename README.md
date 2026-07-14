@@ -5,8 +5,17 @@
 - 公開介紹與分享頁：<https://yazelin.github.io/taigi-news-reader/>
 - 原始碼與自架文件：本 repo
 - 目前發佈狀態：Chrome Web Store `0.1.2` 私人版已送審，採審核通過後手動發佈；尚未公開上架。
+- 下一版候選：`0.1.3` 已修正側欄跨分頁後的 `activeTab` 重新授權流程，但尚未上傳或取代正在審核的 `0.1.2`。
 
 這個專案目前定位為**非商用**、可驗證技術路徑的 MVP，不宣稱已經達到播音員等級，也不會以華語語音替換文字後冒充台語。repo 內提供 [`facebook/mms-tts-nan`](https://huggingface.co/facebook/mms-tts-nan) 的實際 TTS reference；它是南閩語（`nan`）模型，但音色、腔口、字詞與長輩可懂度仍須由台語母語使用者試聽驗收。
+
+## 實際畫面
+
+以下 1280×800 畫面是從 exact `0.1.3` ZIP 解壓後，以正式擴充套件 ID、repo 自有示範新聞頁與全新 Chrome 測試設定檔拍攝；不含邀請碼、API key 或第三方新聞圖文，適合放在 GitHub Pages、Chrome Web Store 與社群分享。
+
+![台語新聞朗讀器讀取自有示範新聞頁](docs/screenshots/reader-exact-package-1280x800.png)
+
+![台語新聞朗讀器設定頁（空白測試設定檔）](docs/screenshots/settings-exact-package-1280x800.png)
 
 ## 先選擇使用方式
 
@@ -65,6 +74,8 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 這條 async-job 路徑已完成 Chromium 150 final：37.01 秒 fixture 合成期間 UI 仍是 `preparing`、service worker 全程存活，完成 37 次短 GET 且 backend 維持 1 個 active job；按 STOP 後 DELETE 回報 `found=true`，active job 歸零且 session 中的 active job id 已清除。真實 Gemini 3.5 Flash + 本機 MMS 的 116 字新聞也從 START 在 50.25 秒進入 `playing`，完成 job 隨即 DELETE，offscreen 成功播放音訊；PAUSE／RESUME／STOP 狀態與 backend cleanup 均通過。
 
 `0.1.2` 已通過 extension 的 `npm run check`、backend 測試、private-beta ingress、非 LAN 完整工作及 exact-package fresh-profile Chromium E2E。可重現的 CWS artifact 是 `extension/release/taigi-news-reader-0.1.2.zip`：50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。2026-07-14 已把同一 ZIP 提交 CWS；目前是 Private／deferred／pending review，不是 approved 或 published。測試數量會隨程式演進，不在這裡硬編會過時的計數；以 CI 與 [驗證紀錄](docs/validation.md) 為準。
+
+目前 repo 另有可重現的 `0.1.3` 候選 ZIP（52,670 bytes；SHA-256 `8ad5e78ec202524db1912d7e0148aeb05f4085eb437626b842581ea52a072e71`）。它讓工具列 action 對當下 exact tab 授權後直接開啟側欄並讀取；切換分頁或跨 origin 導頁會清除舊預覽，再按工具列圖示即可重新授權，不必先關閉側欄。這個版本沒有新增 `host_permissions` 或 `tabs` 權限。Exact ZIP 已在原生 Chrome 全新 profile、正式 ID 下，以真實工具列操作通過「首次讀取 → 側欄保持開啟 → 跨 origin 換頁 → 清除舊預覽 → 側欄按鈕顯示重新授權指引 → 再按工具列圖示 → 自動讀取新頁」；目前仍未上傳，也沒有取代正在審核的 `0.1.2`。
 
 更完整的元件邊界與正式環境方向見 [docs/architecture.md](docs/architecture.md)。
 目前已實際驗證到哪裡、哪些仍待真人測試，見 [docs/validation.md](docs/validation.md)。

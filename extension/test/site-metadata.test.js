@@ -90,6 +90,28 @@ test("Pages distinguishes the hosted demo from private self-hosting", () => {
   }
 });
 
+test("Pages shows exact-package screenshots without third-party news assets", () => {
+  const document = pageDocument();
+  const section = document.querySelector("#screenshots");
+  assert.ok(section);
+  assert.match(section.textContent, /exact 0\.1\.3 ZIP/);
+  assert.match(section.textContent, /不含邀請碼、API key 或第三方新聞圖文/);
+
+  const screenshots = [...section.querySelectorAll(".screenshot-card img")];
+  assert.equal(screenshots.length, 2);
+  for (const screenshot of screenshots) {
+    assert.ok(screenshot.alt);
+    assert.equal(screenshot.getAttribute("width"), "1280");
+    assert.equal(screenshot.getAttribute("height"), "800");
+    const source = screenshot.getAttribute("src");
+    assert.match(source, /^\.\/docs\/screenshots\/[a-z0-9-]+\.png$/);
+    const image = readFileSync(resolve(repositoryRoot, source.slice(2)));
+    assert.deepEqual([...image.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+    assert.equal(image.readUInt32BE(16), 1280);
+    assert.equal(image.readUInt32BE(20), 800);
+  }
+});
+
 test("README provides stable hosted and self-hosting routes", () => {
   const readme = readFileSync(resolve(repositoryRoot, "README.md"), "utf8");
 

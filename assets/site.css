@@ -418,6 +418,51 @@ code {
   margin-bottom: 0;
 }
 
+.screenshot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.screenshot-card {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 2px solid var(--green-700);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 6px 0 #c6d5c9;
+}
+
+.screenshot-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-bottom: 2px solid var(--line);
+}
+
+.screenshot-card figcaption {
+  display: grid;
+  gap: 5px;
+  padding: 18px 20px 20px;
+  color: #405347;
+  line-height: 1.55;
+}
+
+.screenshot-card figcaption strong {
+  color: var(--green-900);
+  font-size: 1.05rem;
+}
+
+.screenshot-note {
+  margin: 24px 0 0;
+  color: #52675a;
+}
+
+.screenshot-note a {
+  font-weight: 850;
+}
+
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -710,6 +755,7 @@ code {
   }
 
   .usage-grid,
+  .screenshot-grid,
   .security-grid,
   .docs-panel {
     grid-template-columns: 1fr;

@@ -1,6 +1,6 @@
 {
   "name": "taigi-news-reader-extension",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "cwsItemId": "nejhlfbnjkbdjcaaklaofggkikdlpakn",
   "private": true,
   "description": "Chrome extension that reads Traditional Chinese news aloud in Taiwanese.",

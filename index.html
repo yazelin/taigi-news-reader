@@ -67,6 +67,7 @@
     <nav class="site-nav" aria-label="主要導覽">
       <a href="#ways-to-use">兩種用法</a>
       <a href="#features">功能</a>
+      <a href="#screenshots">實際畫面</a>
       <a href="#self-hosting">自架重點</a>
       <a href="#faq">常見問題</a>
       <a href="https://github.com/yazelin/taigi-news-reader">GitHub</a>
@@ -147,6 +148,26 @@
         <h3 id="privacy-clarifier-title">「自架」不一定等於「內容完全不離開家裡」</h3>
         <p>若自架後端再選用 Groq、Gemini 或其他雲端 provider，新聞文字仍會由你的後端送到該服務。想讓翻譯與語音都留在自己的設備或私有網路，請使用 <strong>Ollama＋MMS</strong> 本機路徑；第一次仍需下載模型。</p>
       </aside>
+    </section>
+
+    <section class="content-section" id="screenshots" aria-labelledby="screenshots-title">
+      <div class="section-heading">
+        <p class="section-kicker">真實 Chrome・自有示範內容</p>
+        <h2 id="screenshots-title">實際操作與設定畫面</h2>
+        <p class="section-intro">以下畫面由 exact 0.1.3 ZIP 在全新 Chrome 測試設定檔實際執行後拍攝。示範新聞為本專案自有內容，設定頁保持空白，不含邀請碼、API key 或第三方新聞圖文。</p>
+      </div>
+
+      <div class="screenshot-grid">
+        <figure class="screenshot-card">
+          <img src="./docs/screenshots/reader-exact-package-1280x800.png" width="1280" height="800" loading="lazy" decoding="async" alt="Chrome 顯示自有示範新聞，右側台語新聞朗讀側欄已讀取標題與正文">
+          <figcaption><strong>讀取與確認</strong><span>按工具列圖示後，側欄直接讀取當前頁面，再由使用者確認內容。</span></figcaption>
+        </figure>
+        <figure class="screenshot-card">
+          <img src="./docs/screenshots/settings-exact-package-1280x800.png" width="1280" height="800" loading="lazy" decoding="async" alt="台語新聞朗讀設定頁，語音服務網址與私人測試邀請碼欄位皆為空白">
+          <figcaption><strong>服務設定</strong><span>一般使用者填入受邀服務；自架者則填自己的相容後端網址與驗證碼。</span></figcaption>
+        </figure>
+      </div>
+      <p class="screenshot-note"><a href="./docs/screenshots/regrant-guidance-exact-package-1280x800.png">查看換頁後的重新授權提示畫面</a>：側欄不用關閉，再按一次工具列圖示即可讀取新頁。</p>
     </section>
 
     <section class="content-section" id="features" aria-labelledby="features-title">

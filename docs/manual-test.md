@@ -4,11 +4,13 @@
 
 ## 準備
 
-1. Repo 開發測試可在 `extension/` 執行 `npm ci && npm run build` 後載入 `extension/dist/`。Release 驗收必須另把 exact `extension/release/taigi-news-reader-0.1.2.zip`（50,789 bytes；SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`）解壓到空目錄，以最新穩定版 Chrome 的 fresh profile 載入；不得用 `dist/` 結果代替 exact-package evidence。
+1. Repo 開發測試可在 `extension/` 執行 `npm ci && npm run build` 後載入 `extension/dist/`。已提交商店的回歸基線仍是 exact `extension/release/taigi-news-reader-0.1.2.zip`（50,789 bytes；SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`）；下一版 action／換頁流程則使用 exact `extension/release/taigi-news-reader-0.1.3.zip`（52,670 bytes；SHA-256 `8ad5e78ec202524db1912d7e0148aeb05f4085eb437626b842581ea52a072e71`）解壓到另一個空目錄，以最新穩定版 Chrome 的 fresh profile 載入。這個exact-package流程已完成一輪，但仍不得把尚未上傳的`0.1.3`說成已更新商店。
 2. 在設定頁明確填入測試 backend URL 與該環境專用的邀請碼。開發時可用 `http://127.0.0.1:8765`；正式情境必須用營運方 HTTPS URL。若 local backend 未啟用 strict token auth，可輸入只供本機的非空 placeholder；不可拿 production／reviewer token做 local test。
 3. 先以 `TAIGI_PROVIDER_MODE=mock` 啟動開發後端，確認 `http://127.0.0.1:8765/health` 正常。測 strict auth／quota 時另用測試專用的高熵 tokens 與暫存 SQLite，不讀取或輸出 production secrets。
 4. 準備三種頁面：一般新聞、動態載入新聞、非新聞頁。
 5. 準備短句、含數字／姓名／地名的段落，以及接近最大允許長度的文字。
+
+2026-07-14 已用原生 Chrome、exact `0.1.3` ZIP、正式 ID、fresh profile 與 repo 自有 fixture 實際通過首次 action、自動擷取、跨 origin 清除舊預覽，以及側欄保持開啟後重新授權；尚未把新分頁、切換分頁與重新整理的每一種組合都做成原生 UI 證據，所以清單不預先整批勾選。
 
 ## A. 擴充套件與 mock 資料流
 
@@ -18,7 +20,9 @@
 - [ ] 無可讀文字時顯示清楚中文提示，不送空 request。
 - [ ] 播放、暫停、繼續與停止都可用；連按朗讀不會疊播。
 - [ ] 鍵盤可聚焦並操作主要控制項，狀態不是只靠顏色表達。
-- [ ] 重新整理或切換分頁時，不會朗讀另一頁或保留過期選取內容。
+- [ ] 按工具列 action 會以同一次使用者操作開啟 side panel 並自動讀取 exact active tab；首次開啟不會因 panel 尚未載入而漏掉讀取。
+- [ ] 重新整理、導頁或切換分頁時會清除過期預覽，不會朗讀另一頁或保留過期選取內容。
+- [ ] 新分頁或跨 origin 導頁後，side panel 的「重新讀取這一頁」會提示再按工具列圖示授權；按圖示後不必關閉 side panel 即可自動讀取新頁面。
 
 在 Chrome DevTools Network 檢查：
 

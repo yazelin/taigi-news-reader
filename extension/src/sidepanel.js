@@ -4,6 +4,7 @@ const { initialState } = require("./lib/player-state");
 const { describeService } = require("./lib/backend-identity");
 const { createBackendFetch } = require("./lib/backend-fetch");
 const { formatAccessQuota, parseAccessQuota } = require("./lib/access-status");
+const { extractPage, pageReadErrorMessage, shouldInvalidatePageContext } = require("./lib/page-reader");
 
 const backendFetch = createBackendFetch({
   fetchImpl: (...args) => fetch(...args),
@@ -19,6 +20,13 @@ const elements = Object.fromEntries([
 ].map((id) => [id, document.getElementById(id)]));
 
 let extraction = null;
+let extractionTabId = null;
+let activeTabId = null;
+let panelWindowId = null;
+let pageContextRevision = 0;
+let readingTabId = null;
+let pageExtractionQueue = Promise.resolve();
+let pendingReadClaimQueue = Promise.resolve();
 let playbackState = initialState();
 let replayHistory = [];
 const trustedStorageReady = chrome.storage.local.setAccessLevel
@@ -121,21 +129,60 @@ function updateStats() {
   elements.textStats.textContent = `共 ${elements.preview.value.length.toLocaleString("zh-TW")} 字，將分成 ${chunks.length} 段朗讀。`;
 }
 
-async function extractCurrentPage() {
+async function currentPanelTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!Number.isInteger(tab?.id)) throw new Error("找不到目前的網頁分頁。");
+  activeTabId = tab.id;
+  if (Number.isInteger(tab.windowId)) panelWindowId = tab.windowId;
+  return tab;
+}
+
+function clearExtractionUi() {
+  extraction = null;
+  extractionTabId = null;
+  elements.title.value = "";
+  elements.preview.value = "";
+  elements.sourceChooser.hidden = true;
+  elements.previewCard.hidden = true;
+}
+
+function invalidatePageContext({ announce = true } = {}) {
+  const hadPageContext = Boolean(extraction) || Number.isInteger(readingTabId) || !elements.previewCard.hidden;
+  pageContextRevision += 1;
+  readingTabId = null;
+  clearExtractionUi();
+  if (announce && hadPageContext) {
+    showMessage("頁面已切換，舊內容已清除。請按瀏覽器工具列的「台語新聞朗讀」圖示來授權並讀取目前頁面。", "info");
+  }
+}
+
+function pageContextChangedError() {
+  const error = new Error("頁面已切換，未使用較早頁面的內容。請按工具列圖示讀取目前頁面。");
+  error.code = "PAGE_CONTEXT_CHANGED";
+  return error;
+}
+
+async function extractCurrentPage(requestedTabId = null, { grantedByAction = false } = {}) {
   showMessage("");
   elements.extractButton.disabled = true;
+  let revision = null;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) throw new Error("找不到目前的網頁分頁。");
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["extractor.js"] });
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: () => globalThis.TaigiNewsExtractor.extract()
-    });
-    extraction = results[0]?.result;
+    const tab = await currentPanelTab();
+    const tabId = Number.isInteger(requestedTabId) ? requestedTabId : tab.id;
+    if (tabId !== tab.id) throw pageContextChangedError();
+
+    revision = ++pageContextRevision;
+    readingTabId = tabId;
+    clearExtractionUi();
+    const result = await extractPage(chrome, tabId);
+    const currentTab = await currentPanelTab();
+    if (revision !== pageContextRevision || currentTab.id !== tabId) throw pageContextChangedError();
+
+    extraction = result;
     if (!extraction || normalizeText(extraction.body).length < 20) {
-      throw new Error("找不到足夠的新聞文字。你可以先在網頁上選取要朗讀的段落，再按一次「讀取這一頁」。");
+      throw new Error("找不到足夠的新聞文字。你可以先在網頁上選取要朗讀的段落，再按一次「重新讀取這一頁」。");
     }
+    extractionTabId = tabId;
     elements.title.value = extraction.title;
     elements.sourceChooser.hidden = !extraction.selectedText || extraction.selectedText === extraction.body;
     const defaultSource = extraction.source === "selection" ? "selection" : "article";
@@ -145,11 +192,49 @@ async function extractCurrentPage() {
     updatePreview();
     showMessage("新聞內容已讀取。請先確認內容，再開始朗讀。", "info");
   } catch (error) {
-    const restricted = /Cannot access|chrome:\/\/|Missing host permission/i.test(error?.message || "");
-    showMessage(restricted ? "這個頁面不允許擴充套件讀取。請改開一般新聞網站後再試。" : error.message);
+    clearExtractionUi();
+    showMessage(error?.code === "PAGE_CONTEXT_CHANGED"
+      ? error.message
+      : pageReadErrorMessage(error, { grantedByAction }));
   } finally {
+    if (revision === pageContextRevision) readingTabId = null;
     elements.extractButton.disabled = false;
   }
+}
+
+function schedulePageExtraction(tabId = null, options = {}) {
+  const operation = pageExtractionQueue
+    .catch(() => {})
+    .then(() => extractCurrentPage(tabId, options));
+  pageExtractionQueue = operation.catch(() => {});
+  return operation;
+}
+
+async function claimPendingPageRead() {
+  const tab = await currentPanelTab();
+  if (!Number.isInteger(tab.windowId)) return;
+  const response = await chrome.runtime.sendMessage({
+    target: "action-side-panel",
+    type: "TAKE_PENDING_PAGE_READ",
+    windowId: tab.windowId
+  });
+  const request = response?.ok ? response.request : null;
+  if (!request) return;
+  if (request.windowId !== tab.windowId || request.tabId !== tab.id) {
+    invalidatePageContext();
+    return;
+  }
+  await schedulePageExtraction(request.tabId, { grantedByAction: true });
+}
+
+function schedulePendingPageRead() {
+  const operation = pendingReadClaimQueue
+    .catch(() => {})
+    .then(() => claimPendingPageRead());
+  pendingReadClaimQueue = operation.catch((error) => {
+    console.warn("Unable to claim the pending page read.", error);
+  });
+  return pendingReadClaimQueue;
 }
 
 async function startReading() {
@@ -353,15 +438,14 @@ async function command(type) {
 
 async function clearSession() {
   await command("CLEAR");
-  extraction = null;
-  elements.title.value = "";
-  elements.preview.value = "";
-  elements.previewCard.hidden = true;
+  pageContextRevision += 1;
+  readingTabId = null;
+  clearExtractionUi();
   showMessage("");
   renderPlayer(initialState());
 }
 
-elements.extractButton.addEventListener("click", extractCurrentPage);
+elements.extractButton.addEventListener("click", () => schedulePageExtraction());
 elements.startButton.addEventListener("click", startReading);
 elements.pauseButton.addEventListener("click", () => command("PAUSE"));
 elements.resumeButton.addEventListener("click", () => command("RESUME"));
@@ -381,6 +465,26 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.target === "sidepanel" && message.type === "NOTICE") showMessage(message.message, "info");
   if (message.target === "sidepanel" && message.type === "HISTORY_CHANGED") loadReplayHistory();
   if (message.target === "sidepanel" && message.type === "QUOTA_CHANGED") checkBackend();
+  if (message.target === "sidepanel" && message.type === "READ_PAGE_AVAILABLE") schedulePendingPageRead();
+});
+
+chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
+  if (Number.isInteger(panelWindowId) && windowId !== panelWindowId) return;
+  if (!Number.isInteger(panelWindowId)) {
+    currentPanelTab()
+      .then((tab) => {
+        if (tab.id !== extractionTabId) invalidatePageContext();
+      })
+      .catch(() => {});
+    return;
+  }
+  if (tabId === activeTabId) return;
+  activeTabId = tabId;
+  invalidatePageContext();
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (shouldInvalidatePageContext(activeTabId, tabId, changeInfo)) invalidatePageContext();
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -390,3 +494,4 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.storage.session.get("playbackState").then(({ playbackState: stored }) => renderPlayer(stored || initialState()));
 loadReplayHistory();
 checkBackend();
+schedulePendingPageRead();

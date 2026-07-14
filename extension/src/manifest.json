@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "台語新聞朗讀",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoEbPQCXmmnfbMqgpNgHyNU126OiEYOUZ2QMTBQ4P9lOs+Al+RkpBHZHC7aPPYCVm7oRUypxomps8a2MqLKBcurQx7MCgDSkHkQC+JuX2uWMN5L3mnD3SVkJkBc3yoH+/143SMeRz4P9lIlLL8DNlAO2ApkDfjsL5w+PsX2Nc1d0Kb1P9ZON7uWYq059ZnXDoyVLZCLpiJ4YWRtJZEKxNkWBhCZwyuAuUvFkrsbzgQmVVN+E1NWdsGyfAZwLUWgcZZclZJyv5TK7xqMD41/yranNqabM975kMKA/j5PiziT9mLG8Sc6Cjtq80E9s5C0scVtDnj1eFeXIDit/sdlcaTwIDAQAB",
   "description": "把你確認的繁體中文新聞文字送到已設定的台語語音服務，並在 Chrome 播放。",
   "minimum_chrome_version": "116",
@@ -27,7 +27,7 @@
     "service_worker": "service_worker.js"
   },
   "action": {
-    "default_title": "開啟台語新聞朗讀",
+    "default_title": "讀取目前頁面並開啟台語新聞朗讀",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png"
