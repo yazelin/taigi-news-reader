@@ -2,7 +2,7 @@
 
 稽核更新：2026-07-14；live private-beta 證據日期：2026-07-13
 
-這份文件是已提交 Developer Dashboard 的 release copy。Live endpoint、operator-confirmed Groq ZDR、非LAN job與exact `0.1.2` fresh-profile flow已驗證；2026-07-14 也已儲存package、listing、Privacy及test instructions。Operator已明確確認先前曝光的Groq／Gemini keys均撤銷，並在撤銷後完成reviewer smoke。CWS目前是Private／deferred／pending review，不是approved或published。
+這份文件是已提交 Developer Dashboard 的 release copy。Live endpoint、operator-confirmed Groq ZDR、非LAN job、exact `0.1.2` live-service flow，以及 exact `0.1.3` action／換頁 fresh-profile flow均已驗證；2026-07-14 也已儲存package、listing、Privacy及test instructions。Operator已明確確認先前曝光的Groq／Gemini keys均撤銷，並在撤銷後完成reviewer smoke。舊的`0.1.2`審查已取消並由`0.1.3`取代；CWS目前是Private／deferred／pending review，不是approved或published。
 
 ## Store listing
 
@@ -45,11 +45,11 @@
 - Mature content：No。
 - Payments／in-app purchases：No。
 - Dashboard 已儲存 Private distribution，publisher account 也已加入 trusted testers；不需重做這兩項。Private、Unlisted、Public 仍接受相同 policy review。
-- 2026-07-14 已上傳 exact `0.1.2` ZIP，重載後確認 package version／permissions；詳細描述已更新並顯示 616 characters。
+- 2026-07-14 已上傳 exact `0.1.3` ZIP（52,670 bytes；SHA-256 `8ad5e78ec202524db1912d7e0148aeb05f4085eb437626b842581ea52a072e71`），重載後確認 package version／permissions；詳細描述已更新並顯示 616 characters。
 - Dashboard 目前有 128x128 icon、一張 1280x800 screenshot 與 440x280 promo。Privacy 已儲存並重載確認 Remote code=No、Website content＋Authentication information、certifications 與 privacy URL。
 - Test instructions 已於 2026-07-14 儲存：username 是 `cws-reviewer`，64-character raw credential 只存在 Dashboard password 欄，instructions counter 是 360/500。文件、repo 與 evidence 不得保存該 value 或 digest。
 - Homepage、support 與 public privacy URL 已從未登入 HTTP client 確認回 200。
-- Operator 已明確確認先前曝光的Groq／Gemini keys均撤銷。Submit dialog取消「通過審查後自動發布」後已成功送出；success modal明示submission完成並提示通過審查後有30天publish window。
+- Operator 已明確確認先前曝光的Groq／Gemini keys均撤銷。取消舊`0.1.2`審查、上傳`0.1.3`後，Submit dialog再次取消「通過審查後自動發布」並成功送出；success modal明示submission完成並提示通過審查後有30天publish window。
 - Distribution 維持 Private；Status頁reload顯示「這個草稿尚待審查」。目前是deferred／pending review，不是approved或published。
 
 ### 圖像
@@ -99,11 +99,11 @@
 
 Chrome 要求 Dashboard disclosures、privacy policy 與實際行為一致；見 [Fill out the privacy fields](https://developer.chrome.com/docs/webstore/cws-dashboard-privacy)、[User Data FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq/) 與 [Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use)。
 
-Chrome 在 2026-07-01 公布的 [CWS policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 明確把顯著告知擴大到**所有**資料收集，不論是否與 single purpose 密切相關，並自 2026-08-01 起執行。`0.1.2` 的設計已在 options page 顯示 Website content、Authentication information、目的地與 Groq data flow，再要求使用者按「同意並儲存、測試」；每次新聞另在 side panel 預覽後按「確認並開始朗讀」才傳送，replay audio 維持 default-off explicit opt-in。Listing 的詳細描述與本政策也同步揭露這三層。2026-07-14 已把對應 disclosure 與 package 儲存到 Dashboard 並重載確認；這不等於已 Submit for Review。
+Chrome 在 2026-07-01 公布的 [CWS policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 明確把顯著告知擴大到**所有**資料收集，不論是否與 single purpose 密切相關，並自 2026-08-01 起執行。`0.1.3` 的設計已在 options page 顯示 Website content、Authentication information、目的地與 Groq data flow，再要求使用者按「同意並儲存、測試」；每次新聞另在 side panel 預覽後按「確認並開始朗讀」才傳送，replay audio 維持 default-off explicit opt-in。Listing 的詳細描述與本政策也同步揭露這三層。2026-07-14 已把對應 disclosure 與 exact `0.1.3` package 儲存到 Dashboard 並重載確認；package／disclosure reload與submission是兩項不同證據，而本次submission另由success modal與Status待審頁確認。
 
 ## Reviewer test instructions
 
-1. 使用已上傳的 exact `0.1.2` ZIP 安裝，Chrome 116+；檔案是 50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。Reviewer 不需網站帳號；Dashboard username 是 `cws-reviewer`，其個別、可撤銷且具有足夠 quota 的 credential 只存在 password 欄，絕不寫入 repo、listing、instructions本文或 screenshot。
+1. 使用已上傳的 exact `0.1.3` ZIP 安裝，Chrome 116+；檔案是 52,670 bytes，SHA-256 `8ad5e78ec202524db1912d7e0148aeb05f4085eb437626b842581ea52a072e71`。Reviewer 不需網站帳號；Dashboard username 是 `cws-reviewer`，其個別、可撤銷且具有足夠 quota 的 credential 只存在 password 欄，絕不寫入 repo、listing、instructions本文或 screenshot。
 2. 開啟設定，按「使用建議的非商用服務」，輸入 reviewer 邀請碼，確認資料傳輸告知後接受 exact-origin optional permission，再按「同意並儲存、測試」。預期 `/v1/access` 驗證成功；錯誤邀請碼顯示已撤銷／無效且不保存新設定。
 3. 確認 `https://ching-tech.ddns.net/taigi-tts/health` 直接回 JSON，內容是 production 預期的 `mode=concrete`、Groq translator identity 與真正台語 synthesizer identity；不得回網站 HTML，也不得是 mock。Health request 不帶 Authorization。
 4. 開啟一篇公開繁中新聞，按 extension action，再按「讀取這一頁」。檢查預覽後按「確認並開始朗讀」。
@@ -111,4 +111,4 @@ Chrome 在 2026-07-01 公布的 [CWS policy update](https://developer.chrome.com
 6. 開啟本機重播，完成一篇後再次 START；預期 cache hit，不送 `/health` 或 synthesis。從 history 重播也不送 synthesis。清除全部後 history 與 IndexedDB 為空，且 history／player state／job record 不含 invite token。
 7. Review notes 補充：新聞頁只透過 `activeTab` 在使用者操作後讀取；任意 HTTPS pattern 是為 user-selected backend，實際只 runtime-request exact origin；所有 remote responses 都是 data，不是 executable code。套件對 `/health`、POST／GET／DELETE 都帶固定的公開 extension ID header；`/v1/` 另要求逐人 bearer token並綁定 job owner。Header／Origin 不是 secret；server token config 只有 SHA-256 digest＋stable subject。Private beta 只暴露 async routes，direct synthesis 固定 404；另有 per-subject／global UTC daily quotas、delivery lease／job-result caps 及 edge per-IP limits。
 
-2026-07-13 已用 exact `0.1.2` ZIP 的 fresh Chromium profile通過正式ID、原生optional permission、quota、playback／history與replay zero-backend-request；非LAN Tor路徑也完成TLS、`/v1/access`與完整job。2026-07-14 在舊Groq／Gemini keys撤銷後，以Dashboard同一reviewer credential重跑live Groq→MMS smoke：access成功，job由POST 202到completed，回傳`audio/wav`且`audio_base64`為51,260 characters，cleanup DELETE為204；個人quota從remaining 19 jobs／11,993 characters變成18／11,986。這些證據不記raw credential、digest、email或測試文字。Item已提交且等待Private review；backend在整個review期間必須保持可用。
+2026-07-13 已用 exact `0.1.2` ZIP 的 fresh Chromium profile通過正式ID、原生optional permission、quota、playback／history與replay zero-backend-request；非LAN Tor路徑也完成TLS、`/v1/access`與完整job。2026-07-14 在舊Groq／Gemini keys撤銷後，以Dashboard同一reviewer credential重跑live Groq→MMS smoke：access成功，job由POST 202到completed，回傳`audio/wav`且`audio_base64`為51,260 characters，cleanup DELETE為204；個人quota從remaining 19 jobs／11,993 characters變成18／11,986。同日 exact `0.1.3` ZIP 又以原生Chrome fresh profile、正式ID與自有fixture通過首次action自動擷取、跨origin清除舊預覽，以及側欄保持開啟後重新授權。這些證據不記raw credential、digest、email或測試文字。`0.1.3` Item已提交且等待Private review；backend在整個review期間必須保持可用。

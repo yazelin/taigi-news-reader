@@ -56,7 +56,7 @@ Repo 仍保留 Gemini adapter 供自行架設後端的人選用，但 Chrome Web
 
 本專案對從 Chrome APIs 取得資訊的使用遵守 Chrome Web Store User Data Policy，包括 Limited Use requirements。詳見 [Chrome Web Store Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use)。
 
-Chrome 於 2026-07-01 公布的 [Chrome Web Store policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 要求所有資料收集都向使用者顯著揭露，不再因為資料與 single purpose 密切相關而省略，並自 2026-08-01 起執行。`0.1.2` 的設計在設定頁先顯示服務目的地、Website content／Authentication information 的用途及第三方 Groq，再由使用者按「同意並儲存、測試」；新聞文字另須在 side panel 預覽後按「確認並開始朗讀」才傳送，本機音訊保存則維持 default-off explicit opt-in。2026-07-14 已在 Dashboard 儲存並重載確認 Remote code=No、Website content＋Authentication information、Limited Use certifications 與本 privacy URL，並以 deferred publishing 提交 Private review。Status 仍顯示草稿待審查；這不是 approval 或 publication。
+Chrome 於 2026-07-01 公布的 [Chrome Web Store policy update](https://developer.chrome.com/blog/cws-policy-updates-2026) 要求所有資料收集都向使用者顯著揭露，不再因為資料與 single purpose 密切相關而省略，並自 2026-08-01 起執行。`0.1.3` 的設計在設定頁先顯示服務目的地、Website content／Authentication information 的用途及第三方 Groq，再由使用者按「同意並儲存、測試」；新聞文字另須在 side panel 預覽後按「確認並開始朗讀」才傳送，本機音訊保存則維持 default-off explicit opt-in。2026-07-14 已在 Dashboard 儲存並重載確認 Remote code=No、Website content＋Authentication information、Limited Use certifications 與本 privacy URL，並把 exact `0.1.3` package以deferred publishing提交Private review。Status仍顯示草稿待審查；這不是approval或publication。
 
 ## 政策更新
 

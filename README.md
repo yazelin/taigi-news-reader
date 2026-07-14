@@ -4,8 +4,8 @@
 
 - 公開介紹與分享頁：<https://yazelin.github.io/taigi-news-reader/>
 - 原始碼與自架文件：本 repo
-- 目前發佈狀態：Chrome Web Store `0.1.2` 私人版已送審，採審核通過後手動發佈；尚未公開上架。
-- 下一版候選：`0.1.3` 已修正側欄跨分頁後的 `activeTab` 重新授權流程，但尚未上傳或取代正在審核的 `0.1.2`。
+- 目前發佈狀態：Chrome Web Store `0.1.3` 私人版已送審，採審核通過後手動發佈；尚未核准或公開上架。
+- 本次升版：舊的 `0.1.2` 審查已取消並由 `0.1.3` 取代；新版本修正側欄跨分頁後的 `activeTab` 重新授權流程，沒有新增權限。
 
 這個專案目前定位為**非商用**、可驗證技術路徑的 MVP，不宣稱已經達到播音員等級，也不會以華語語音替換文字後冒充台語。repo 內提供 [`facebook/mms-tts-nan`](https://huggingface.co/facebook/mms-tts-nan) 的實際 TTS reference；它是南閩語（`nan`）模型，但音色、腔口、字詞與長輩可懂度仍須由台語母語使用者試聽驗收。
 
@@ -73,9 +73,9 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 這條 async-job 路徑已完成 Chromium 150 final：37.01 秒 fixture 合成期間 UI 仍是 `preparing`、service worker 全程存活，完成 37 次短 GET 且 backend 維持 1 個 active job；按 STOP 後 DELETE 回報 `found=true`，active job 歸零且 session 中的 active job id 已清除。真實 Gemini 3.5 Flash + 本機 MMS 的 116 字新聞也從 START 在 50.25 秒進入 `playing`，完成 job 隨即 DELETE，offscreen 成功播放音訊；PAUSE／RESUME／STOP 狀態與 backend cleanup 均通過。
 
-`0.1.2` 已通過 extension 的 `npm run check`、backend 測試、private-beta ingress、非 LAN 完整工作及 exact-package fresh-profile Chromium E2E。可重現的 CWS artifact 是 `extension/release/taigi-news-reader-0.1.2.zip`：50,789 bytes，SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`。2026-07-14 已把同一 ZIP 提交 CWS；目前是 Private／deferred／pending review，不是 approved 或 published。測試數量會隨程式演進，不在這裡硬編會過時的計數；以 CI 與 [驗證紀錄](docs/validation.md) 為準。
+`0.1.2` 曾通過 extension 的 `npm run check`、backend 測試、private-beta ingress、非 LAN 完整工作及 exact-package fresh-profile Chromium E2E；它是已完成的歷史回歸基線。2026-07-14 已取消其待審草稿，改由下方 `0.1.3` 提交 CWS。測試數量會隨程式演進，不在這裡硬編會過時的計數；以 CI 與 [驗證紀錄](docs/validation.md) 為準。
 
-目前 repo 另有可重現的 `0.1.3` 候選 ZIP（52,670 bytes；SHA-256 `8ad5e78ec202524db1912d7e0148aeb05f4085eb437626b842581ea52a072e71`）。它讓工具列 action 對當下 exact tab 授權後直接開啟側欄並讀取；切換分頁或跨 origin 導頁會清除舊預覽，再按工具列圖示即可重新授權，不必先關閉側欄。這個版本沒有新增 `host_permissions` 或 `tabs` 權限。Exact ZIP 已在原生 Chrome 全新 profile、正式 ID 下，以真實工具列操作通過「首次讀取 → 側欄保持開啟 → 跨 origin 換頁 → 清除舊預覽 → 側欄按鈕顯示重新授權指引 → 再按工具列圖示 → 自動讀取新頁」；目前仍未上傳，也沒有取代正在審核的 `0.1.2`。
+目前 CWS artifact 是可重現的 `extension/release/taigi-news-reader-0.1.3.zip`（52,670 bytes；SHA-256 `8ad5e78ec202524db1912d7e0148aeb05f4085eb437626b842581ea52a072e71`）。它讓工具列 action 對當下 exact tab 授權後直接開啟側欄並讀取；切換分頁或跨 origin 導頁會清除舊預覽，再按工具列圖示即可重新授權，不必先關閉側欄。這個版本沒有新增 `host_permissions` 或 `tabs` 權限。Exact ZIP 已在原生 Chrome 全新 profile、正式 ID 下，以真實工具列操作通過「首次讀取 → 側欄保持開啟 → 跨 origin 換頁 → 清除舊預覽 → 側欄按鈕顯示重新授權指引 → 再按工具列圖示 → 自動讀取新頁」。2026-07-14 已上傳同一 ZIP 並送審；目前是 Private／deferred／pending review，不是 approved 或 published。
 
 更完整的元件邊界與正式環境方向見 [docs/architecture.md](docs/architecture.md)。
 目前已實際驗證到哪裡、哪些仍待真人測試，見 [docs/validation.md](docs/validation.md)。
@@ -84,7 +84,7 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 
 ## 免費私人測試：使用專案託管服務
 
-擴充套件目前內建的建議 URL 是 `https://ching-tech.ddns.net/taigi-tts`。`0.1.2` source 已實作每位測試者各自的邀請碼、配額與工作隔離。邀請碼不是 Groq／Gemini provider key：明碼只存在該 Chrome profile 的 `chrome.storage.local`，綁定設定的 backend origin，並只以 `Authorization: Bearer …` 送到同 origin 的 `/v1/`。Server 只設定 SHA-256 digest 與穩定假名 subject；任何把共用 provider key 或共用邀請碼包進 extension ZIP 的作法都會讓安裝者取得它，禁止採用。
+擴充套件目前內建的建議 URL 是 `https://ching-tech.ddns.net/taigi-tts`。`0.1.3` source 已實作每位測試者各自的邀請碼、配額與工作隔離。邀請碼不是 Groq／Gemini provider key：明碼只存在該 Chrome profile 的 `chrome.storage.local`，綁定設定的 backend origin，並只以 `Authorization: Bearer …` 送到同 origin 的 `/v1/`。Server 只設定 SHA-256 digest 與穩定假名 subject；任何把共用 provider key 或共用邀請碼包進 extension ZIP 的作法都會讓安裝者取得它，禁止採用。
 
 「免費私人測試」代表目前不向受邀測試者收費，不代表永久免費、公開註冊或 SLA。每位測試者應取得不同邀請碼；共用同一邀請碼也會共用同一份個人配額。現行 beta 限制如下：
 
@@ -109,7 +109,7 @@ Live edge／backend 已驗證正式 extension ID 與 CORS pinning、缺少／錯
 
 Operator 已在 Groq Console 人工確認 production project 啟用 ZDR，並於 2026-07-14 明確確認先前曝光的 Groq／Gemini keys 均已撤銷；replacement Groq key 正在供應成功請求。撤銷後以同一 reviewer credential 重跑 live Groq→MMS job，完成 POST 202→completed、`audio/wav`、DELETE 204，個人 quota 由 19 jobs／11,993 characters 變成 18／11,986；文件不保存 raw key、token、digest、email 或測試文字。
 
-CWS Dashboard 已完成並重載確認 `0.1.2` package、616-character 詳細描述、Remote code=No、Website content＋Authentication information、certifications、privacy URL 與 reviewer test instructions；Distribution 維持 Private。Submit dialog 已取消「通過審查後自動發布」後送出，成功 modal 明示 submission 成功並提示通過審查後有 30 天 publish window。Status 頁目前仍是待審查；deferred publishing 表示即使未來通過也不會自動發佈。
+CWS Dashboard 已完成並重載確認 `0.1.3` package、預期權限、616-character 詳細描述、Remote code=No、Website content＋Authentication information、certifications、privacy URL 與 reviewer test instructions；Distribution 維持 Private。舊的 `0.1.2` 審查已取消，`0.1.3` 的 Submit dialog 也已取消「通過審查後自動發布」後送出；成功 modal 明示 submission 成功並提示通過審查後有 30 天 publish window。Status 頁目前仍是待審查；deferred publishing 表示即使未來通過也不會自動發佈。
 
 私人測試者安裝後，在設定頁填入營運方提供的 HTTPS URL 與自己的邀請碼；之後開啟新聞、選取文字或讓套件擷取正文，再按朗讀即可。若未設定、邀請碼被撤銷、配額已滿或後端無法連線，套件必須明確提示對應問題，不得默默改接不明遠端服務或華語 voice。
 
@@ -216,9 +216,9 @@ docker run --rm --env-file backend/.env.production \
 
 ### 從私人測試升級為公開版
 
-Private trusted testers 與 Public 可以使用同一個 Chrome Web Store item；不需建立另一個 extension ID。Dashboard 已儲存 Private distribution、publisher trusted tester、exact `0.1.2` ZIP、Privacy disclosures 與 test instructions；live ingress、operator-confirmed ZDR、舊 Groq／Gemini keys 撤銷、非 LAN job 與 exact-package E2E 也已完成。Reviewer raw token 只存在 Dashboard password 欄，不在 repo、listing 或 evidence 中。`0.1.2` 現已用 deferred publishing 提交並等待 Private review；尚未核准或發佈。
+Private trusted testers 與 Public 可以使用同一個 Chrome Web Store item；不需建立另一個 extension ID。Dashboard 已儲存 Private distribution、publisher trusted tester、exact `0.1.3` ZIP、Privacy disclosures 與 test instructions；live ingress、operator-confirmed ZDR、舊 Groq／Gemini keys 撤銷、非 LAN job 與 exact-package E2E 也已完成。Reviewer raw token 只存在 Dashboard password 欄，不在 repo、listing 或 evidence 中。`0.1.3` 現已用 deferred publishing 提交並等待 Private review；尚未核准或發佈。
 
-公開升版時維持同一 item ID，再將 manifest／package 版本提升（例如 `0.1.3`），上傳新 ZIP、更新 privacy／listing／review notes 並重新送審，之後才把 distribution 改成 Public。相同 item ID 讓已安裝的私人版可正常自動更新；本機設定與重播資料也保留，但若公開版更換 authentication 模式，必須提供明確 migration／sign-out 並安全清除舊 invite token。
+未來公開升版時維持同一 item ID，再將 manifest／package 版本提升（例如 `0.1.4`），上傳新 ZIP、更新 privacy／listing／review notes 並重新送審，之後才把 distribution 改成 Public。相同 item ID 讓已安裝的私人版可正常自動更新；本機設定與重播資料也保留，但若公開版更換 authentication 模式，必須提供明確 migration／sign-out 並安全清除舊 invite token。
 
 公開版不能把 CWS trusted-testers 名單誤當成 API authorization，也不能把一組共用 token 烘焙進 extension。上線前要決定可擴充的個別帳號／憑證發放、撤銷與遺失復原流程，重新做容量與成本模型、隱私告知、provider terms、濫用申訴／支援、備份／復原及多使用者負載測試。若仍採 invite token，也必須維持逐人、可撤銷與有限配額，而不是公開共用 secret。
 

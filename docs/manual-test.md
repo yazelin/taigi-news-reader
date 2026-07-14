@@ -4,7 +4,7 @@
 
 ## 準備
 
-1. Repo 開發測試可在 `extension/` 執行 `npm ci && npm run build` 後載入 `extension/dist/`。已提交商店的回歸基線仍是 exact `extension/release/taigi-news-reader-0.1.2.zip`（50,789 bytes；SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`）；下一版 action／換頁流程則使用 exact `extension/release/taigi-news-reader-0.1.3.zip`（52,670 bytes；SHA-256 `8ad5e78ec202524db1912d7e0148aeb05f4085eb437626b842581ea52a072e71`）解壓到另一個空目錄，以最新穩定版 Chrome 的 fresh profile 載入。這個exact-package流程已完成一輪，但仍不得把尚未上傳的`0.1.3`說成已更新商店。
+1. Repo 開發測試可在 `extension/` 執行 `npm ci && npm run build` 後載入 `extension/dist/`。目前已提交商店的package是 exact `extension/release/taigi-news-reader-0.1.3.zip`（52,670 bytes；SHA-256 `8ad5e78ec202524db1912d7e0148aeb05f4085eb437626b842581ea52a072e71`）；請解壓到空目錄，以最新穩定版 Chrome 的 fresh profile 載入。這個exact-package流程已完成一輪，並已上傳、提交Private／deferred review；尚未核准或發佈。Exact `0.1.2`（50,789 bytes；SHA-256 `5639d9b33090a50470dd800ce03c2c620d55fbadea3b4f821c1ab119b6e012e6`）只保留為前一版完整語音回歸證據。
 2. 在設定頁明確填入測試 backend URL 與該環境專用的邀請碼。開發時可用 `http://127.0.0.1:8765`；正式情境必須用營運方 HTTPS URL。若 local backend 未啟用 strict token auth，可輸入只供本機的非空 placeholder；不可拿 production／reviewer token做 local test。
 3. 先以 `TAIGI_PROVIDER_MODE=mock` 啟動開發後端，確認 `http://127.0.0.1:8765/health` 正常。測 strict auth／quota 時另用測試專用的高熵 tokens 與暫存 SQLite，不讀取或輸出 production secrets。
 4. 準備三種頁面：一般新聞、動態載入新聞、非新聞頁。
@@ -78,7 +78,7 @@
 - [ ] 分別觸發每subject outstanding jobs、global outstanding jobs、active jobs、per-subject terminal bytes與global terminal bytes caps；回429或安全terminal failure，不持續增加process memory。TTL後terminal／tombstone／stale delivery lease被清除。
 - [ ] Nginx 以 client IP 分別限制 health、access、create、poll／delete request rate與同時 connection；429／拒絕不回顯 Authorization 或內部設定。Backend access logs 不記 `/v1/` request body或 token。
 - [ ] Private beta 只有一個 backend worker／replica，quota SQLite 位於 durable volume；effective Compose 另顯示 2 GiB memory、`memswap_limit=2 GiB`（沒有額外 swap）、4 CPUs、600 source characters、6,000 translated characters、16 MiB audio、480秒MMS整份timeout，以及每 subject 每 UTC 日 20 jobs／12,000 characters、全域 100 jobs／60,000 characters。Restart／rollback smoke 通過；未改成 shared job registry 前，不做 multi-worker deployment。
-- [ ] 從 operator LAN 外以 reviewer 網路完成 `/health`、`/v1/access`、job、one-shot GET、DELETE 與 quota smoke；這項通過前不得宣稱 reviewer endpoint 可用或送審。
+- [ ] 從 operator LAN 外以 reviewer 網路完成 `/health`、`/v1/access`、job、one-shot GET、DELETE 與 quota smoke；現有證據已覆蓋外部TLS／access／完整job，但這項完整矩陣通過前，不得宣稱外部reviewer路徑的每一個操作都已驗收。
 
 ## D. 本機重播與隱私
 
