@@ -347,7 +347,11 @@ CI 會執行相同層級的測試。更多協作與安全要求見 [AGENTS.md](A
 
 ### GitHub Pages 與社群分享圖
 
-公開 Pages 使用 `main` branch 的 repo root，來源是 [`index.html`](index.html)，正式 canonical 是 <https://yazelin.github.io/taigi-news-reader/>。社群分享圖保留可維護的 [`assets/og-image.svg`](assets/og-image.svg) 與供 Open Graph／Twitter 使用的 1200×630 [`assets/og-image.png`](assets/og-image.png)。修改 SVG 後可用 Chromium 重產固定尺寸 PNG：
+公開 Pages 使用 `main` branch 的 repo root，來源是 [`index.html`](index.html)，正式 canonical 是 <https://yazelin.github.io/taigi-news-reader/>。首頁的[三段公開試聽](https://yazelin.github.io/taigi-news-reader/#audio-samples)是 [`assets/audio/`](assets/audio/README.md) 內已產生好的固定 MP3；訪客播放時不呼叫 backend、不上傳文字，也不使用邀請碼配額。三段短稿皆為 repo 自有示範內容，頁面與音檔紀錄會顯示實際 TTS 羅馬字、provider、處理方式、hash、授權與尚待母語者驗收的限制。
+
+公開音檔使用內容 hash 檔名；更新音訊時應新增新檔名並同步修改 HTML 與紀錄，不要直接覆寫舊 URL。這是純 Pages 靜態資產更新，不會改變 Chrome 擴充套件權限、資料流或 Web Store ZIP，因此不需只為試聽 MP3 重新送審套件。
+
+社群分享圖保留可維護的 [`assets/og-image.svg`](assets/og-image.svg) 與供 Open Graph／Twitter 使用的 1200×630 [`assets/og-image.png`](assets/og-image.png)。修改 SVG 後可用 Chromium 重產固定尺寸 PNG：
 
 ```bash
 chromium --headless --no-sandbox --disable-gpu --hide-scrollbars \

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>台語新聞朗讀｜可私人測試與自架的 Chrome 擴充套件</title>
-  <meta name="description" content="在 Chrome 主動讀取或選取繁體中文新聞，確認後轉為台語朗讀。可使用邀請制免費私人測試，或自架後端並選擇 Groq、Gemini、OpenAI-compatible、Ollama 與 MMS 台語 TTS。非商用測試版。">
+  <meta name="description" content="在 Chrome 主動讀取或選取繁體中文新聞，確認後轉為台語朗讀。可先試聽三段實際產生的台語語音，再選擇邀請制私人測試或自行架設後端。非商用測試版。">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
   <meta name="application-name" content="台語新聞朗讀">
   <meta name="theme-color" content="#155b2c">
@@ -19,7 +19,7 @@
   <meta property="og:locale" content="zh_TW">
   <meta property="og:site_name" content="台語新聞朗讀">
   <meta property="og:title" content="台語新聞朗讀｜私人測試，也能私有自架">
-  <meta property="og:description" content="Chrome 長輩友善台語朗讀工具。可加入邀請制免費私人測試，或自架後端、自選翻譯服務，API 金鑰只留在後端。">
+  <meta property="og:description" content="先試聽三段實際產生的台語語音。Chrome 長輩友善朗讀工具，可加入邀請制私人測試，或自架後端、自選翻譯服務。">
   <meta property="og:image" content="https://yazelin.github.io/taigi-news-reader/assets/og-image.png">
   <meta property="og:image:secure_url" content="https://yazelin.github.io/taigi-news-reader/assets/og-image.png">
   <meta property="og:image:type" content="image/png">
@@ -29,7 +29,7 @@
 
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="台語新聞朗讀｜私人測試，也能私有自架">
-  <meta name="twitter:description" content="Chrome 長輩友善台語朗讀工具。可加入邀請制免費私人測試，或自架後端、自選翻譯服務。">
+  <meta name="twitter:description" content="先試聽三段實際產生的台語語音。Chrome 長輩友善朗讀工具，可加入邀請制私人測試，或自架後端。">
   <meta name="twitter:image" content="https://yazelin.github.io/taigi-news-reader/assets/og-image.png">
   <meta name="twitter:image:alt" content="台語新聞朗讀 Chrome 擴充套件：邀請制私人測試，也支援自行架設後端">
 
@@ -39,13 +39,14 @@
       "@type": "SoftwareApplication",
       "name": "台語新聞朗讀",
       "url": "https://yazelin.github.io/taigi-news-reader/",
-      "description": "在 Chrome 主動讀取或選取繁體中文新聞，確認後轉成台語播放；可使用邀請制私人測試，或自行架設後端與台語 TTS。",
+      "description": "在 Chrome 主動讀取或選取繁體中文新聞，確認後轉成台語播放；網站提供三段實際台語語音試聽，也可使用邀請制私人測試或自行架設後端。",
       "applicationCategory": "BrowserApplication",
       "operatingSystem": "Chrome",
       "inLanguage": "zh-Hant-TW",
       "image": "https://yazelin.github.io/taigi-news-reader/assets/og-image.png",
       "softwareRequirements": "Google Chrome；私人測試需個別邀請碼，自架需自行部署後端服務",
       "featureList": [
+        "三段固定台語 MP3 公開試聽",
         "邀請制免費私人測試",
         "可自行架設後端",
         "可選 Groq、Gemini、OpenAI-compatible 或 Ollama 翻譯",
@@ -65,6 +66,7 @@
       <span>台語新聞朗讀</span>
     </a>
     <nav class="site-nav" aria-label="主要導覽">
+      <a href="#audio-samples">先試聽</a>
       <a href="#ways-to-use">兩種用法</a>
       <a href="#features">功能</a>
       <a href="#screenshots">實際畫面</a>
@@ -82,8 +84,8 @@
         <h1 id="hero-title">新聞，我講給你聽</h1>
         <p class="lede">主動讀取或選取繁體中文新聞，先確認內容，再轉成台語播放。你可以加入邀請制私人測試，也可以把整套後端架在自己的設備或伺服器。</p>
         <div class="actions">
-          <a class="button primary" href="#ways-to-use">選擇使用方式</a>
-          <a class="button" href="https://github.com/yazelin/taigi-news-reader#readme">查看原始碼與文件</a>
+          <a class="button primary" href="#audio-samples">先聽 3 段台語</a>
+          <a class="button" href="#ways-to-use">選擇使用方式</a>
         </div>
         <p class="status-line" id="status">
           <span class="status-dot" aria-hidden="true"></span>
@@ -95,6 +97,74 @@
           <img src="./extension/assets/icon-source.svg" width="330" height="330" alt="">
           <p>長輩友善・清楚控制</p>
         </div>
+      </div>
+    </section>
+
+    <section class="content-section audio-samples-section" id="audio-samples" aria-labelledby="audio-samples-title">
+      <div class="section-heading">
+        <p class="section-kicker">文字 → 台語 → 語音，先聽效果</p>
+        <h2 id="audio-samples-title">三段實際產生的台語語音</h2>
+        <p class="section-intro">這三段是已產生好的固定 MP3。直接按播放即可試聽，不會上傳文字、不會呼叫後端，也不會扣私人測試邀請碼額度。</p>
+      </div>
+
+      <aside class="audio-disclosure" aria-label="示範內容來源說明">
+        <strong>專案自有示範稿・非即時新聞</strong>
+        <span>內容由本專案自行編寫，未取自第三方新聞，也不代表真實事件、天氣預報或官方通知；只用來展示華語轉台語與語音朗讀流程。</span>
+      </aside>
+
+      <div class="audio-sample-grid">
+        <article class="audio-sample-card">
+          <p class="audio-category">天氣與交通</p>
+          <h3 id="sample-weather-title">沿海風勢增強，外出留意路況</h3>
+          <p id="sample-weather-description" class="audio-description">約 22 秒・固定示範音檔</p>
+          <audio controls preload="none" aria-labelledby="sample-weather-title" aria-describedby="sample-weather-description">
+            <source src="./assets/audio/sample-weather-0d6928b9.mp3" type="audio/mpeg">
+            您的瀏覽器不支援音訊播放；可使用下方連結下載 MP3。
+          </audio>
+          <a class="audio-download" href="./assets/audio/sample-weather-0d6928b9.mp3" download>無法播放？下載這段 MP3</a>
+          <details class="audio-transcript">
+            <summary>查看原始華語與實際台語轉寫</summary>
+            <p><strong>原始華語：</strong><span lang="zh-Hant-TW">清晨沿海風勢較強，白天雲量逐漸增加，部分地區偶有短暫雨。民眾外出可準備輕便雨具，騎車經過空曠路段時請減速慢行。</span></p>
+            <p><strong>台語羅馬字：</strong><span lang="nan-Latn">tsá-khí-sî iân-hái ê hong-sè khah tōa ji̍t-sî hûn-liōng tsiām-tsiām tsing-ka pōo-hūn tē-khu ū-sî-á ē lo̍h bô-kú ê hōo tāi-ke tshut-mn̂g thang tsún-pī khing-piān ê hōo-kū khiâ-tshia king-kuè khui-khuah ê lōo-tuān ê sî-tsūn tshiánn sái khah bān</span></p>
+          </details>
+        </article>
+
+        <article class="audio-sample-card">
+          <p class="audio-category">社區生活</p>
+          <h3 id="sample-community-title">社區共餐試辦週末服務</h3>
+          <p id="sample-community-description" class="audio-description">約 19 秒・固定示範音檔</p>
+          <audio controls preload="none" aria-labelledby="sample-community-title" aria-describedby="sample-community-description">
+            <source src="./assets/audio/sample-community-996cb0a9.mp3" type="audio/mpeg">
+            您的瀏覽器不支援音訊播放；可使用下方連結下載 MP3。
+          </audio>
+          <a class="audio-download" href="./assets/audio/sample-community-996cb0a9.mp3" download>無法播放？下載這段 MP3</a>
+          <details class="audio-transcript">
+            <summary>查看原始華語與實際台語轉寫</summary>
+            <p><strong>原始華語：</strong><span lang="zh-Hant-TW">社區活動中心試辦週末共餐，由志工準備家常菜，也協助行動不便的長輩登記送餐。主辦單位提醒，餐點數量有限，請有需要的居民提前預約。</span></p>
+            <p><strong>台語羅馬字：</strong><span lang="nan-Latn">siā-khu oa̍h-tāng tiong-sim chhì-pān chiu-boa̍t chò-hóe chia̍h-pn̄g iû chì-kang chún-pī ka-siông-chhài iā pang-chān kiânn-lōo bô-hong-piān ê tióng-pòe teng-kì beh hōo lâng sàng-pn̄g chú-pān tan-ūi thê-chhenn chhan-tiám ê sòo-liōng iú-hān chhiánn ū su-iàu ê ki-bîn thê-chêng ū-iok</span></p>
+          </details>
+        </article>
+
+        <article class="audio-sample-card">
+          <p class="audio-category">地方文化</p>
+          <h3 id="sample-culture-title">地方影像保存居民記憶</h3>
+          <p id="sample-culture-description" class="audio-description">約 21 秒・固定示範音檔</p>
+          <audio controls preload="none" aria-labelledby="sample-culture-title" aria-describedby="sample-culture-description">
+            <source src="./assets/audio/sample-culture-6f8130db.mp3" type="audio/mpeg">
+            您的瀏覽器不支援音訊播放；可使用下方連結下載 MP3。
+          </audio>
+          <a class="audio-download" href="./assets/audio/sample-culture-6f8130db.mp3" download>無法播放？下載這段 MP3</a>
+          <details class="audio-transcript">
+            <summary>查看原始華語與實際台語轉寫</summary>
+            <p><strong>原始華語：</strong><span lang="zh-Hant-TW">地方文化館整理早年街景與生活照片，邀請居民分享照片背後的故事。工作人員將口述內容整理成文字，未來作為社區展覽與教育活動素材。</span></p>
+            <p><strong>台語羅馬字：</strong><span lang="nan-Latn">tē-hng bûn-hoà-koán chíng-lí chá-nî ê ke-kíng kap seng-hoa̍h siòng-phìnn kiò ki-bîn lâi hun-hióng siòng-phìnn āu-piah ê kò͘-sū kang-chok jîn-oân chiong chhùi-kóng ê lāi-iông chíng-lí chò bûn-jī āu-lâi beh chò siā-khu tián-lám kap kàu-io̍k oa̍h-tāng ê châi-liāu</span></p>
+          </details>
+        </article>
+      </div>
+
+      <div class="audio-provenance">
+        <p><strong>這批固定樣本的產生方式：</strong>Gemini 3.5 Flash 先將自有華語短稿轉成台語羅馬字；加入網站前逐字檢查並修正明顯的詞義與拼寫問題，再由 <a href="https://huggingface.co/facebook/mms-tts-nan"><code>facebook/mms-tts-nan</code></a> 產生 WAV，最後只做音量調整與 MP3 轉檔。播放的就是上方列出的最終文字。</p>
+        <p>模型標示為 <a href="https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</a>，本站只作非商用展示。這批經檢查的固定樣本用來呈現 TTS 音色與流程，不保證每次即時翻譯都有相同品質；實際結果會隨內容與 provider 改變。台語用詞、腔口與發音仍可能不準，請以母語者與長輩的實際聽感為準；不要用於緊急、醫療或其他要求逐字正確的資訊。<a href="https://github.com/yazelin/taigi-news-reader/blob/main/assets/audio/README.md">查看每段音檔的完整產生紀錄</a>。</p>
       </div>
     </section>
 

@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const { createHash } = require("node:crypto");
 const { existsSync, readFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 const test = require("node:test");
@@ -112,6 +113,70 @@ test("Pages shows exact-package screenshots without third-party news assets", ()
   }
 });
 
+test("Pages publishes three static, accessible, provenance-complete audio samples", () => {
+  const document = pageDocument();
+  const section = document.querySelector("#audio-samples");
+
+  assert.ok(section);
+  assert.match(section.textContent, /專案自有示範稿/);
+  assert.match(section.textContent, /非即時新聞/);
+  assert.match(section.textContent, /不會上傳文字/);
+  assert.match(section.textContent, /不會扣私人測試邀請碼額度/);
+  assert.match(section.textContent, /facebook\/mms-tts-nan/);
+  assert.match(section.textContent, /CC BY-NC 4\.0/);
+  assert.match(section.textContent, /母語者與長輩/);
+  assert.match(section.textContent, /不保證每次即時翻譯都有相同品質/);
+
+  const cards = [...section.querySelectorAll(".audio-sample-card")];
+  assert.equal(cards.length, 3);
+  const sources = new Set();
+
+  for (const card of cards) {
+    const title = card.querySelector("h3[id]");
+    const description = card.querySelector(".audio-description[id]");
+    const audioElement = card.querySelector("audio");
+    const sourceElement = audioElement?.querySelector("source");
+    const download = card.querySelector("a.audio-download[download]");
+    const transcript = card.querySelector(".audio-transcript");
+
+    assert.ok(title?.textContent.trim());
+    assert.ok(description?.textContent.trim());
+    assert.ok(audioElement?.hasAttribute("controls"));
+    assert.equal(audioElement.getAttribute("preload"), "none");
+    assert.equal(audioElement.hasAttribute("autoplay"), false);
+    assert.equal(audioElement.hasAttribute("loop"), false);
+    assert.equal(audioElement.getAttribute("aria-labelledby"), title.id);
+    assert.equal(audioElement.getAttribute("aria-describedby"), description.id);
+    assert.equal(sourceElement?.getAttribute("type"), "audio/mpeg");
+
+    const source = sourceElement?.getAttribute("src");
+    const match = source?.match(
+      /^\.\/assets\/audio\/sample-(?:weather|community|culture)-([0-9a-f]{8})\.mp3$/,
+    );
+    assert.ok(match, `Unexpected public audio path ${source}`);
+    assert.equal(sources.has(source), false, `Duplicate public audio path ${source}`);
+    sources.add(source);
+    assert.equal(download?.getAttribute("href"), source);
+
+    const bytes = readFileSync(resolve(repositoryRoot, source.slice(2)));
+    assert.ok(bytes.length > 100_000, `${source} is unexpectedly small`);
+    assert.ok(bytes.length < 2 * 1024 * 1024, `${source} is unexpectedly large`);
+    assert.notEqual(
+      bytes.subarray(0, 43).toString("utf8"),
+      "version https://git-lfs.github.com/spec/v1\n",
+    );
+    assert.equal(bytes[0], 0xff, `${source} does not start with an MP3 frame`);
+    assert.equal(bytes[1] & 0xe0, 0xe0, `${source} has an invalid MP3 frame sync`);
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    assert.equal(digest.slice(0, 8), match[1]);
+
+    assert.ok(transcript?.querySelector("span[lang='zh-Hant-TW']")?.textContent.trim());
+    assert.ok(transcript?.querySelector("span[lang='nan-Latn']")?.textContent.trim());
+  }
+
+  assert.equal(sources.size, 3);
+});
+
 test("README provides stable hosted and self-hosting routes", () => {
   const readme = readFileSync(resolve(repositoryRoot, "README.md"), "utf8");
 
@@ -140,6 +205,7 @@ test("Open Graph PNG is present at exactly 1200 by 630 pixels", () => {
   assert.equal(image.readUInt32BE(20), 630);
   assert.ok(existsSync(resolve(repositoryRoot, "assets/og-image.svg")));
   assert.ok(existsSync(resolve(repositoryRoot, "assets/site.css")));
+  assert.ok(existsSync(resolve(repositoryRoot, "assets/audio/README.md")));
 });
 
 test("robots and sitemap point crawlers at the canonical Pages URL", () => {
