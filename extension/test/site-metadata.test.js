@@ -25,6 +25,7 @@ test("Pages landing exposes complete canonical, Open Graph, and Twitter metadata
   const document = pageDocument();
 
   assert.ok(document.title.includes("台語新聞朗讀"));
+  assert.equal(document.querySelector("#hero-title").textContent, "新聞，我講給你聽");
   assert.ok(content(document, "meta[name='description']"));
   assert.equal(content(document, "link[rel='canonical']", "href"), canonicalUrl);
 
