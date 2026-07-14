@@ -13,10 +13,12 @@ services:
       # Defense in depth: the Internet beta never retains the synchronous route.
       # Strict token mode in the app also rejects startup if this is not false.
       TAIGI_ALLOW_DIRECT_SYNTHESIS: "false"
-      # The extension currently creates 500-character chunks. Keep a little
-      # contract headroom while bounding translation, audio, and daily spend.
+      # The extension currently creates 500-character chunks. POJ romanization
+      # can expand Chinese source text well beyond four characters per source
+      # character, so keep enough translated-text headroom while bounding
+      # source text, audio, and daily spend independently.
       TAIGI_MAX_TEXT_CHARS: "600"
-      TAIGI_MAX_TRANSLATED_CHARS: "2000"
+      TAIGI_MAX_TRANSLATED_CHARS: "6000"
       TAIGI_MAX_AUDIO_BYTES: "16777216"
       TAIGI_DAILY_SUBJECT_JOB_LIMIT: "20"
       TAIGI_DAILY_SUBJECT_CHARACTER_LIMIT: "12000"

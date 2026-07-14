@@ -70,7 +70,7 @@ def test_private_beta_compose_override_adds_only_fail_closed_bounds():
     assert "memswap_limit: 2g" in override
     assert 'cpus: "4.0"' in override
     assert 'TAIGI_MAX_TEXT_CHARS: "600"' in override
-    assert 'TAIGI_MAX_TRANSLATED_CHARS: "2000"' in override
+    assert 'TAIGI_MAX_TRANSLATED_CHARS: "6000"' in override
     assert 'TAIGI_MAX_AUDIO_BYTES: "16777216"' in override
     assert 'TAIGI_DAILY_SUBJECT_JOB_LIMIT: "20"' in override
     assert 'TAIGI_DAILY_SUBJECT_CHARACTER_LIMIT: "12000"' in override

@@ -258,6 +258,42 @@ async def test_openai_compatible_normalizes_newline_without_repair():
 
 
 @pytest.mark.parametrize(
+    ("output_length", "exceeds_limit"),
+    [(2_000, False), (2_001, True)],
+)
+async def test_openai_compatible_enforces_exact_output_character_boundary(
+    output_length, exceeds_limit
+):
+    translation = "a" * output_length
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": translation}}]},
+        )
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://provider.test/v1/",
+    )
+    provider = OpenAICompatibleTranslator(
+        base_url="https://unused",
+        api_key="secret",
+        model="translator-model",
+        timeout_seconds=1,
+        max_output_chars=2_000,
+        client=client,
+    )
+
+    if exceeds_limit:
+        with pytest.raises(ProviderError, match="exceeded the output limit"):
+            await provider.translate("新聞")
+    else:
+        assert await provider.translate("新聞") == translation
+    await client.aclose()
+
+
+@pytest.mark.parametrize(
     "invalid", ["這是中文", "sin-bun 2026", "bad", "tâi-gír"]
 )
 async def test_openai_compatible_fails_after_one_invalid_repair(invalid):

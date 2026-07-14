@@ -83,16 +83,16 @@ Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也
 | 每個邀請碼 subject 每日原文字元 | 12,000 字元 |
 | 所有測試者合計每日工作數／原文字元 | 100 jobs／60,000 字元 |
 | 擴充套件每個文字區塊 | 最多 500 字元 |
-| 後端單一工作 | 600 原文字元、2,000 翻譯字元、16 MiB WAV |
+| 後端單一工作 | 600 原文字元、6,000 翻譯字元、16 MiB WAV |
 | 配額重置 | UTC 00:00；台灣時間 08:00 |
 
 20 jobs 與 500 字元分段會讓單一 subject 的實際上限通常先落在約 10,000 原文字元。工作被接受時就保留配額；後續 provider 失敗或使用者取消不退回。本機重播若已命中 cache，不會再次傳送新聞或扣 backend 配額；重播規則見[本機重播記錄](#本機重播記錄選用)。
 
 以上是專案方目前部署的 **demo profile**，不是寫死在 Chrome 擴充套件裡的永久上限。自架者可以依硬體、成本和使用人數調整 server-side 配額；擴充套件會顯示後端 `/v1/access` 回報的該使用者剩餘額度。
 
-2026-07-13 已把 [`deploy/private-beta/`](deploy/private-beta/README.md) profile 套用到 `192.168.11.11`。推薦 HTTPS endpoint 現在由 strict invite-token Groq＋MMS backend 提供服務；backend 維持單一 worker、沒有 host publish port，使用 durable quota database，container 限 2 GiB memory、沒有額外 swap、4 CPUs。Server 已載入兩個不同的假名 subject，不在 repo 或證據中保存 raw token／digest。開發包仍不會自動選用推薦服務；使用者必須在設定頁主動選擇服務、輸入管理者個別提供的邀請碼並通過 `/v1/access` 驗證。
+2026-07-13 已把 [`deploy/private-beta/`](deploy/private-beta/README.md) profile 套用到 `192.168.11.11`。推薦 HTTPS endpoint 現在由 strict invite-token Groq＋MMS backend 提供服務；backend 維持單一 worker、沒有 host publish port，使用 durable quota database，container 限 2 GiB memory、沒有額外 swap、4 CPUs。Server 已載入多個彼此獨立的假名 subject，不在 repo 或證據中保存 raw token／digest。開發包仍不會自動選用推薦服務；使用者必須在設定頁主動選擇服務、輸入管理者個別提供的邀請碼並通過 `/v1/access` 驗證。
 
-Live edge／backend 已驗證正式 extension ID 與 CORS pinning、缺少／錯誤 credential 的 401、cross-subject ownership 404、實際每日配額 429、direct synthesis 404，以及 600 source characters／2,000 translated characters／16 MiB audio 的 request caps。從 operator LAN 外經 Tor 出口完成 TLS、`/v1/access` 與完整 Groq＋MMS job，證明不再只是 LAN pilot。Exact `0.1.2` ZIP 也已在 fresh Chromium profile 以正式 ID 通過原生 optional permission、quota 顯示、真實播放、history 與 replay zero-backend-request；完整證據見 [驗證紀錄](docs/validation.md)。
+Live edge／backend 已驗證正式 extension ID 與 CORS pinning、缺少／錯誤 credential 的 401、cross-subject ownership 404、實際每日配額 429、direct synthesis 404，以及 600 source characters／6,000 translated characters／16 MiB audio 的 request caps。從 operator LAN 外經 Tor 出口完成 TLS、`/v1/access` 與完整 Groq＋MMS job，證明不再只是 LAN pilot。Exact `0.1.2` ZIP 也已在 fresh Chromium profile 以正式 ID 通過原生 optional permission、quota 顯示、真實播放、history 與 replay zero-backend-request；完整證據見 [驗證紀錄](docs/validation.md)。
 
 Operator 已在 Groq Console 人工確認 production project 啟用 ZDR，並於 2026-07-14 明確確認先前曝光的 Groq／Gemini keys 均已撤銷；replacement Groq key 正在供應成功請求。撤銷後以同一 reviewer credential 重跑 live Groq→MMS job，完成 POST 202→completed、`audio/wav`、DELETE 204，個人 quota 由 19 jobs／11,993 characters 變成 18／11,986；文件不保存 raw key、token、digest、email 或測試文字。
 
@@ -173,7 +173,7 @@ remote TTS endpoint 接收 `{"text":"...","language":"nan-TW","rate":1.0}`，回
 
 目前的非商用目標也可以把 MMS 直接跑在 hosted backend：將 `TAIGI_TTS_PROVIDER=mms`、`TAIGI_MMS_MODEL=facebook/mms-tts-nan`，並以 `docker build --build-arg INSTALL_LOCAL_MMS=1 ...` 建置。這樣一般使用者仍不需安裝模型；模型只存在營運方 server。翻譯端可接 OpenAI-compatible provider，或在同一個私有網路中使用 Ollama。
 
-本機 MMS adapter 會由 `TAIGI_MAX_AUDIO_BYTES` 先換算最大 PCM sample 數；Transformers forward 回傳 waveform tensor 後，先用 `numel()` 檢查，再呼叫 `.cpu().flatten().tolist()`，避免超大 tensor 額外膨脹成無界 Python list，WAV encoder 也再次逐 sample／最終 bytes 驗證。這是 **pre-`.tolist()` cap**，不是 pre-forward cap：Transformers model 在 `numel()` 檢查前仍已完成 forward 並配置輸出 tensor，Python 無法保證在 model 內部配置前知道最後長度。Private beta 因此還要依賴 600／2,000／16 MiB request limits、MMS single-flight gate、2 GiB container memory/no-swap cap 與 4-CPU quota；文件不得宣稱 audio cap 能阻止所有 model-forward memory peak。
+本機 MMS adapter 會由 `TAIGI_MAX_AUDIO_BYTES` 先換算最大 PCM sample 數；Transformers forward 回傳 waveform tensor 後，先用 `numel()` 檢查，再呼叫 `.cpu().flatten().tolist()`，避免超大 tensor 額外膨脹成無界 Python list，WAV encoder 也再次逐 sample／最終 bytes 驗證。這是 **pre-`.tolist()` cap**，不是 pre-forward cap：Transformers model 在 `numel()` 檢查前仍已完成 forward 並配置輸出 tensor，Python 無法保證在 model 內部配置前知道最後長度。Private beta 因此還要依賴 600／6,000／16 MiB request limits、MMS single-flight gate、2 GiB container memory/no-swap cap 與 4-CPU quota；文件不得宣稱 audio cap 能阻止所有 model-forward memory peak。
 
 例如 [Groq 已提供 OpenAI-compatible Chat Completions](https://console.groq.com/docs/openai)，可直接使用現有 adapter：`TAIGI_OPENAI_BASE_URL=https://api.groq.com/openai/v1`，API key 只放 server，模型可先以 `openai/gpt-oss-120b` 做 POJ 品質測試。接得上 API 不等於台語品質已通過；輸出仍須經 MMS 字元 gate、新聞測試集與母語者驗收。
 

@@ -39,9 +39,10 @@ the Internet location, all of these conditions are mandatory:
   and all active/outstanding/terminal-byte caps from
   [`deploy/lan/backend.env.example`](../lan/backend.env.example). Never print the
   effective environment during review.
-- The beta override narrows each request to 600 source characters, 2,000
+- The beta override narrows each request to 600 source characters, 6,000
   translated characters, and 16 MiB generated audio. The extension currently
-  sends 500-character chunks, so 600 leaves contract headroom without retaining
+  sends 500-character chunks, so 600 leaves source headroom; the translated-text
+  bound accommodates normal expansion from Chinese into POJ without retaining
   the broad LAN diagnostic limit. Daily limits are exactly 20 jobs/12,000 source
   characters per subject and 100 jobs/60,000 source characters globally. These
   are independent hard counters; do not describe byte limits as an audio
