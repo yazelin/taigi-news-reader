@@ -153,7 +153,7 @@ Private beta只暴露async job routes，並把單次限制縮為600 source chara
 
 自架參考實作為 `OllamaTranslator` 與 `MmsTtsSynthesizer`。開發實作為 deterministic `MockTranslator` / `MockTtsSynthesizer`，讓 CI 不下載大型模型。mock output 只能標示為測試資料。目前非商用託管可在 server 沿用 MMS，但翻譯端仍須換成品質合格的 provider，且整體資料政策必須適合實際使用情境。
 
-MMS 的 `max_audio_bytes` 會先換算成 mono 16-bit PCM sample cap。Transformers runtime 完成 model forward 取得 waveform 後，在 tensor 仍緊密時先以 `numel()` 拒絕超限，再執行 `.cpu().flatten().tolist()`；WAV encoder對 known-length／iterable count、finite samples與final bytes 再次 fail closed。這能阻止超限 tensor被轉成更昂貴的 Python list，但不能阻止 model forward 本身先配置 waveform tensor或其他內部 tensor。Python thread也不能被 asyncio 強制終止，因此另以 single-flight gate、request limits及container memory／CPU caps控制風險；文件與 UI 不得把 pre-`.tolist()` cap 描述成完整 pre-allocation guarantee。
+MMS adapter 先將已通過 POJ gate 的文字依單字邊界切成最多200字元的 inference chunks；全部chunks仍在同一worker、thread lock、single-flight gate與整份deadline中依序執行。每段runtime只取得整份音訊剩餘的mono 16-bit PCM sample budget，sample rate必須一致；bounded PCM builder在每段後釋放Python float list，最後只寫一次RIFF header，不截斷翻譯、也不串接多個完整WAV。Transformers runtime 完成每次 model forward 取得 waveform 後，在 tensor 仍緊密時先以 `numel()` 拒絕超限，再執行 `.cpu().flatten().tolist()`；builder對 known-length／iterable count、finite samples與final bytes 再次 fail closed。這能縮小每次VITS forward並阻止超限tensor再轉成更昂貴的Python list，但不能保證model內部完全不出現配置峰值。Timeout／async cancellation會在當前不可中止的forward返回後阻止後續chunks；現有HTTP DELETE刻意不cancel provider task，仍會把capacity保留到真實worker結束。Private beta另以480秒整份timeout、single-flight、request limits及container memory／CPU caps控制風險。
 
 repo 目前提供下列託管部署接點：
 

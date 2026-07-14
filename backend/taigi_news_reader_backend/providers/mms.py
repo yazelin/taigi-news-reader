@@ -18,6 +18,10 @@ from .base import AudioResult, ProviderError
 
 _WAV_HEADER_BYTES = 44
 _PCM_SAMPLE_BYTES = 2
+# VITS inference memory grows non-linearly with tokenizer length. Keep each
+# already-validated POJ forward deliberately small; the adapter combines all
+# PCM frames afterward without truncating the translation.
+MMS_MAX_INFERENCE_TEXT_CHARS = 200
 
 
 class MmsRuntime(Protocol):
@@ -89,45 +93,106 @@ class TransformersMmsRuntime:
         return samples, sample_rate
 
 
+class _PcmWavBuilder:
+    """Accumulate bounded mono PCM while releasing each model waveform early."""
+
+    def __init__(self, max_audio_bytes: int) -> None:
+        if max_audio_bytes < _WAV_HEADER_BYTES + _PCM_SAMPLE_BYTES:
+            raise ProviderError("configured audio size limit is too small")
+        self.max_audio_bytes = max_audio_bytes
+        self.max_samples = (
+            max_audio_bytes - _WAV_HEADER_BYTES
+        ) // _PCM_SAMPLE_BYTES
+        self.sample_rate: int | None = None
+        self.pcm = array("h")
+
+    @property
+    def remaining_samples(self) -> int:
+        return self.max_samples - len(self.pcm)
+
+    def append(self, samples: Iterable[float], sample_rate: int) -> None:
+        if not 8_000 <= sample_rate <= 192_000:
+            raise ProviderError("speech provider returned an invalid sample rate")
+        if self.sample_rate is None:
+            self.sample_rate = sample_rate
+        elif self.sample_rate != sample_rate:
+            raise ProviderError("speech provider returned inconsistent sample rates")
+        try:
+            known_length = len(samples)  # type: ignore[arg-type]
+        except TypeError:
+            known_length = None
+        if known_length is not None and known_length > self.remaining_samples:
+            raise ProviderError("speech provider audio exceeds the configured size limit")
+        before = len(self.pcm)
+        for sample in samples:
+            if not self.remaining_samples:
+                raise ProviderError(
+                    "speech provider audio exceeds the configured size limit"
+                )
+            value = float(sample)
+            if not math.isfinite(value):
+                raise ProviderError(
+                    "speech provider returned a non-finite audio sample"
+                )
+            self.pcm.append(round(max(-1.0, min(1.0, value)) * 32_767))
+        if len(self.pcm) == before:
+            raise ProviderError("speech provider returned empty audio")
+
+    def encode(self) -> bytes:
+        if not self.pcm or self.sample_rate is None:
+            raise ProviderError("speech provider returned empty audio")
+        if sys.byteorder != "little":
+            self.pcm.byteswap()
+        output = io.BytesIO()
+        with wave.open(output, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(_PCM_SAMPLE_BYTES)
+            wav.setframerate(self.sample_rate)
+            wav.writeframes(self.pcm.tobytes())
+        encoded = output.getvalue()
+        if len(encoded) > self.max_audio_bytes:
+            raise ProviderError(
+                "speech provider audio exceeds the configured size limit"
+            )
+        return encoded
+
+
 def float_waveform_to_wav(
     samples: Iterable[float],
     sample_rate: int,
     *,
     max_audio_bytes: int = 25 * 1024 * 1024,
 ) -> bytes:
-    if not 8_000 <= sample_rate <= 192_000:
-        raise ProviderError("speech provider returned an invalid sample rate")
-    if max_audio_bytes < _WAV_HEADER_BYTES + _PCM_SAMPLE_BYTES:
-        raise ProviderError("configured audio size limit is too small")
-    max_samples = (max_audio_bytes - _WAV_HEADER_BYTES) // _PCM_SAMPLE_BYTES
-    try:
-        known_length = len(samples)  # type: ignore[arg-type]
-    except TypeError:
-        known_length = None
-    if known_length is not None and known_length > max_samples:
-        raise ProviderError("speech provider audio exceeds the configured size limit")
-    pcm = array("h")
-    for sample in samples:
-        if len(pcm) >= max_samples:
-            raise ProviderError("speech provider audio exceeds the configured size limit")
-        value = float(sample)
-        if not math.isfinite(value):
-            raise ProviderError("speech provider returned a non-finite audio sample")
-        pcm.append(round(max(-1.0, min(1.0, value)) * 32_767))
-    if not pcm:
-        raise ProviderError("speech provider returned empty audio")
-    if sys.byteorder != "little":
-        pcm.byteswap()
-    output = io.BytesIO()
-    with wave.open(output, "wb") as wav:
-        wav.setnchannels(1)
-        wav.setsampwidth(2)
-        wav.setframerate(sample_rate)
-        wav.writeframes(pcm.tobytes())
-    encoded = output.getvalue()
-    if len(encoded) > max_audio_bytes:
-        raise ProviderError("speech provider audio exceeds the configured size limit")
-    return encoded
+    builder = _PcmWavBuilder(max_audio_bytes)
+    builder.append(samples, sample_rate)
+    return builder.encode()
+
+
+def split_mms_inference_text(
+    text: str,
+    max_chars: int = MMS_MAX_INFERENCE_TEXT_CHARS,
+) -> tuple[str, ...]:
+    """Split validated POJ at word boundaries without truncating its content."""
+
+    if max_chars < 1:
+        raise ValueError("max_chars must be positive")
+    words = text.split()
+    if not words:
+        raise ProviderError("MMS returned empty or invalid text")
+    if any(len(word) > max_chars for word in words):
+        raise ProviderError("MMS speech text contains an overlong token")
+    chunks: list[str] = []
+    current = ""
+    for word in words:
+        combined = f"{current} {word}" if current else word
+        if len(combined) <= max_chars:
+            current = combined
+            continue
+        chunks.append(current)
+        current = word
+    if current:
+        chunks.append(current)
+    return tuple(chunks)
 
 
 class MmsTtsSynthesizer:
@@ -138,14 +203,18 @@ class MmsTtsSynthesizer:
         device: str,
         timeout_seconds: float,
         max_audio_bytes: int,
+        max_inference_text_chars: int = MMS_MAX_INFERENCE_TEXT_CHARS,
         runtime_loader: Callable[[str, str], MmsRuntime] | None = None,
     ) -> None:
         self.model_name = model_name
         self.device = device
         self.timeout_seconds = timeout_seconds
         self.max_audio_bytes = max_audio_bytes
+        self.max_inference_text_chars = max_inference_text_chars
         if max_audio_bytes < _WAV_HEADER_BYTES + _PCM_SAMPLE_BYTES:
             raise ValueError("max_audio_bytes is too small for WAV audio")
+        if max_inference_text_chars < 1:
+            raise ValueError("max_inference_text_chars must be positive")
         self._max_pcm_samples = (
             max_audio_bytes - _WAV_HEADER_BYTES
         ) // _PCM_SAMPLE_BYTES
@@ -163,22 +232,40 @@ class MmsTtsSynthesizer:
     def name(self) -> str:
         return f"huggingface:{self.model_name}"
 
-    def _synthesize_sync(self, text: str, rate: float) -> bytes:
+    def _synthesize_sync(
+        self,
+        text: str,
+        rate: float,
+        stop_requested: threading.Event,
+    ) -> bytes:
         # The lock both makes lazy initialization race-free and keeps inference
         # serialized: a single VITS model instance is not assumed thread-safe.
         with self._lock:
             if self._runtime is None:
                 self._runtime = self._runtime_loader(self.model_name, self.device)
-            samples, sample_rate = self._runtime.synthesize(
+            builder = _PcmWavBuilder(self.max_audio_bytes)
+            for chunk in split_mms_inference_text(
                 text,
-                rate,
-                self._max_pcm_samples,
-            )
-            return float_waveform_to_wav(
-                samples,
-                sample_rate,
-                max_audio_bytes=self.max_audio_bytes,
-            )
+                self.max_inference_text_chars,
+            ):
+                if stop_requested.is_set():
+                    raise ProviderError("MMS speech synthesis was stopped")
+                if not builder.remaining_samples:
+                    raise ProviderError(
+                        "speech provider audio exceeds the configured size limit"
+                    )
+                samples, sample_rate = self._runtime.synthesize(
+                    chunk,
+                    rate,
+                    builder.remaining_samples,
+                )
+                if stop_requested.is_set():
+                    raise ProviderError("MMS speech synthesis was stopped")
+                builder.append(samples, sample_rate)
+                # Do not retain the final chunk's Python float list while the
+                # bounded PCM array is copied into the final BytesIO buffer.
+                del samples
+            return builder.encode()
 
     async def synthesize(self, text: str, rate: float) -> AudioResult:
         loop = asyncio.get_running_loop()
@@ -186,6 +273,7 @@ class MmsTtsSynthesizer:
         acquired = False
         detached = False
         worker: asyncio.Task[bytes] | None = None
+        stop_requested = threading.Event()
         try:
             await asyncio.wait_for(
                 self._inference_gate.acquire(),
@@ -193,7 +281,12 @@ class MmsTtsSynthesizer:
             )
             acquired = True
             worker = asyncio.create_task(
-                asyncio.to_thread(self._synthesize_sync, text, rate),
+                asyncio.to_thread(
+                    self._synthesize_sync,
+                    text,
+                    rate,
+                    stop_requested,
+                ),
                 name="mms-inference",
             )
             audio = await asyncio.wait_for(
@@ -201,11 +294,13 @@ class MmsTtsSynthesizer:
                 timeout=max(0.0, deadline - loop.time()),
             )
         except asyncio.CancelledError:
+            stop_requested.set()
             if worker is not None and not worker.done():
                 self._detach_worker(worker)
                 detached = True
             raise
         except TimeoutError as exc:
+            stop_requested.set()
             if worker is not None and not worker.done():
                 self._detach_worker(worker)
                 detached = True

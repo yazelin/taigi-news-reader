@@ -13,8 +13,10 @@ from taigi_news_reader_backend.app import build_service
 from taigi_news_reader_backend.config import Settings
 from taigi_news_reader_backend.providers import MmsTtsSynthesizer, ProviderError
 from taigi_news_reader_backend.providers.mms import (
+    MMS_MAX_INFERENCE_TEXT_CHARS,
     TransformersMmsRuntime,
     float_waveform_to_wav,
+    split_mms_inference_text,
 )
 
 
@@ -66,6 +68,82 @@ async def test_mms_runtime_loads_lazily_once_and_forwards_speaking_rate():
     with wave.open(io.BytesIO(first.audio), "rb") as wav:
         assert wav.getframerate() == 16_000
         assert wav.getnframes() == 5
+
+
+def test_mms_text_chunks_preserve_every_word_within_the_inference_bound():
+    text = " ".join(["tâi-gí"] * 250)
+
+    chunks = split_mms_inference_text(text)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= MMS_MAX_INFERENCE_TEXT_CHARS for chunk in chunks)
+    assert " ".join(chunks) == text
+
+
+def test_mms_text_chunks_reject_an_overlong_unbroken_token():
+    with pytest.raises(ProviderError, match="overlong token"):
+        split_mms_inference_text("a" * 11, max_chars=10)
+
+
+async def test_mms_synthesizes_bounded_chunks_and_combines_one_wav():
+    runtime = FakeRuntime()
+    provider = MmsTtsSynthesizer(
+        model_name="test/mms",
+        device="cpu",
+        timeout_seconds=1,
+        max_audio_bytes=64,
+        max_inference_text_chars=8,
+        runtime_loader=lambda model, device: runtime,
+    )
+
+    result = await provider.synthesize("tsit hit sann", 0.9)
+
+    assert runtime.calls == [("tsit hit", 0.9), ("sann", 0.9)]
+    assert runtime.max_samples == [10, 5]
+    assert len(result.audio) == 64
+    with wave.open(io.BytesIO(result.audio), "rb") as wav:
+        assert wav.getframerate() == 16_000
+        assert wav.getnchannels() == 1
+        assert wav.getsampwidth() == 2
+        assert wav.getnframes() == 10
+    await provider.aclose()
+
+
+async def test_mms_chunked_audio_rejects_inconsistent_sample_rates():
+    class ChangingRateRuntime(FakeRuntime):
+        def synthesize(self, text: str, rate: float, max_samples: int):
+            samples, sample_rate = super().synthesize(text, rate, max_samples)
+            return samples, sample_rate + (1_000 if len(self.calls) == 2 else 0)
+
+    provider = MmsTtsSynthesizer(
+        model_name="test/mms",
+        device="cpu",
+        timeout_seconds=1,
+        max_audio_bytes=1_024,
+        max_inference_text_chars=8,
+        runtime_loader=lambda model, device: ChangingRateRuntime(),
+    )
+
+    with pytest.raises(ProviderError, match="inconsistent sample rates"):
+        await provider.synthesize("tsit hit sann", 1.0)
+    await provider.aclose()
+
+
+async def test_mms_chunked_audio_enforces_one_total_wav_size_limit():
+    runtime = FakeRuntime()
+    provider = MmsTtsSynthesizer(
+        model_name="test/mms",
+        device="cpu",
+        timeout_seconds=1,
+        max_audio_bytes=54,
+        max_inference_text_chars=8,
+        runtime_loader=lambda model, device: runtime,
+    )
+
+    with pytest.raises(ProviderError, match="size limit"):
+        await provider.synthesize("tsit hit sann", 1.0)
+    assert runtime.calls == [("tsit hit", 1.0)]
+    await provider.aclose()
 
 
 @pytest.mark.parametrize(
@@ -238,6 +316,32 @@ async def test_timed_out_call_keeps_single_flight_until_real_worker_exits():
         if second is not None and not second.done():
             second.cancel()
         await asyncio.gather(first, *(tuple((second,)) if second else ()), return_exceptions=True)
+        await provider.aclose()
+
+
+async def test_timed_out_chunked_call_stops_before_starting_the_next_chunk():
+    runtime = BlockingRuntime()
+    provider = MmsTtsSynthesizer(
+        model_name="test/mms",
+        device="cpu",
+        timeout_seconds=0.1,
+        max_audio_bytes=1_024,
+        max_inference_text_chars=6,
+        runtime_loader=lambda model, device: runtime,
+    )
+    call = asyncio.create_task(provider.synthesize("first second", 1.0))
+    try:
+        await wait_thread_event(runtime.entered[0])
+        with pytest.raises(ProviderError, match="timed out"):
+            await call
+
+        runtime.release[0].set()
+        await provider.aclose()
+        assert runtime.entered[1].is_set() is False
+    finally:
+        runtime.release[0].set()
+        runtime.release[1].set()
+        await asyncio.gather(call, return_exceptions=True)
         await provider.aclose()
 
 

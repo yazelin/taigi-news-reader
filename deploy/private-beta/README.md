@@ -47,6 +47,11 @@ the Internet location, all of these conditions are mandatory:
   characters per subject and 100 jobs/60,000 source characters globally. These
   are independent hard counters; do not describe byte limits as an audio
   duration guarantee.
+- Local MMS splits already-validated POJ into at most 200-character inference
+  chunks inside one worker, appends their bounded mono PCM, and emits one WAV.
+  The whole job shares one 480-second timeout and one 16 MiB audio cap; neither
+  the timeout nor the byte cap resets per inference chunk. This bounds each VITS
+  forward without truncating the translation or multiplying quota jobs.
 - Each tester and reviewer receives a different high-entropy token. Only its
   SHA-256 digest and a non-personal stable subject are configured server-side.
   Raw tokens never enter this repo, the extension ZIP, a URL, nginx config,

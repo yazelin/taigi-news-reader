@@ -20,6 +20,9 @@ services:
       TAIGI_MAX_TEXT_CHARS: "600"
       TAIGI_MAX_TRANSLATED_CHARS: "6000"
       TAIGI_MAX_AUDIO_BYTES: "16777216"
+      # Chunked CPU MMS keeps one deadline for the whole translated passage.
+      # A near-cap passage can require multiple bounded model forwards.
+      TAIGI_MMS_TIMEOUT_SECONDS: "480"
       TAIGI_DAILY_SUBJECT_JOB_LIMIT: "20"
       TAIGI_DAILY_SUBJECT_CHARACTER_LIMIT: "12000"
       TAIGI_DAILY_GLOBAL_JOB_LIMIT: "100"

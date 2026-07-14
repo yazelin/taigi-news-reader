@@ -55,7 +55,7 @@
 - [ ] 明確記錄 extension header 與 Origin 都可被非瀏覽器 client 偽造，不把它們列為 authentication；真正 authentication 是逐人 invite bearer token，但仍須搭配 quota 與 edge controls。
 - [ ] 過大 request、provider timeout 都回傳可理解且不洩漏內部秘密的錯誤。
 - [ ] Strict invite-token backend 在 `TAIGI_ALLOW_DIRECT_SYNTHESIS=true` 時啟動 fail closed；private-beta edge 的 `POST /v1/synthesize` 固定 404，只有 local/default development可保留direct diagnostic route。
-- [ ] Private-beta effective container顯示600 source characters、6,000 translated characters、16 MiB audio、2 GiB hard memory/no-swap與4-CPU quota；不要把16 MiB描述成固定音訊秒數。
+- [ ] Private-beta effective container顯示600 source characters、6,000 translated characters、16 MiB audio、480秒MMS整份timeout、2 GiB hard memory/no-swap與4-CPU quota；程式常數另固定每個MMS inference chunk最多200字元。不要把16 MiB描述成固定音訊秒數。
 
 ## C. 驗證、配額與工作隔離
 
@@ -73,7 +73,7 @@
 - [ ] DELETE pending、已進入non-cooperative provider thread的job：owner立即看不到、重複DELETE維持204，但active／outstanding capacity到provider真正返回前不下降；create/delete loop不能製造平行MMS推論。
 - [ ] 分別觸發每subject outstanding jobs、global outstanding jobs、active jobs、per-subject terminal bytes與global terminal bytes caps；回429或安全terminal failure，不持續增加process memory。TTL後terminal／tombstone／stale delivery lease被清除。
 - [ ] Nginx 以 client IP 分別限制 health、access、create、poll／delete request rate與同時 connection；429／拒絕不回顯 Authorization 或內部設定。Backend access logs 不記 `/v1/` request body或 token。
-- [ ] Private beta 只有一個 backend worker／replica，quota SQLite 位於 durable volume；effective Compose 另顯示 2 GiB memory、`memswap_limit=2 GiB`（沒有額外 swap）、4 CPUs、600 source characters、6,000 translated characters、16 MiB audio，以及每 subject 每 UTC 日 20 jobs／12,000 characters、全域 100 jobs／60,000 characters。Restart／rollback smoke 通過；未改成 shared job registry 前，不做 multi-worker deployment。
+- [ ] Private beta 只有一個 backend worker／replica，quota SQLite 位於 durable volume；effective Compose 另顯示 2 GiB memory、`memswap_limit=2 GiB`（沒有額外 swap）、4 CPUs、600 source characters、6,000 translated characters、16 MiB audio、480秒MMS整份timeout，以及每 subject 每 UTC 日 20 jobs／12,000 characters、全域 100 jobs／60,000 characters。Restart／rollback smoke 通過；未改成 shared job registry 前，不做 multi-worker deployment。
 - [ ] 從 operator LAN 外以 reviewer 網路完成 `/health`、`/v1/access`、job、one-shot GET、DELETE 與 quota smoke；這項通過前不得宣稱 reviewer endpoint 可用或送審。
 
 ## D. 本機重播與隱私
@@ -119,6 +119,8 @@
 - [ ] 語速調整有效，不造成嚴重失真；停止操作能中止目前播放。
 - [ ] 文章分段後停頓自然，沒有漏句、重複或順序錯亂。
 - [ ] 使用超限fixture確認MMS在waveform tensor完成後、`.tolist()`前以`numel()`拒絕，WAV encoder也拒絕超限iterable／bytes；記錄這不是pre-forward guarantee，model forward仍可能先配置輸出／內部tensor，container memory cap才是額外邊界。
+- [ ] 使用超過200字元的合法POJ fixture確認MMS逐段呼叫runtime、每段不超過200字元、共用遞減sample budget與整份timeout，最後WAV只有一個RIFF header且frames為各段總和；sample rate不一致、空段或總bytes超限都fail closed，不回傳部分音訊。
+- [ ] 在2 GiB live-equivalent container以約200字元POJ做實機RSS smoke；再以完整async job確認多段MMS完成時container沒有OOM／restart。不要把單次smoke描述成所有文字與rate的記憶體保證。
 
 ## F. 母語者與長輩驗收
 
