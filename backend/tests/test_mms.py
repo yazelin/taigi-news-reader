@@ -5,6 +5,7 @@ from contextlib import nullcontext
 import io
 from types import SimpleNamespace
 import threading
+import unicodedata
 import wave
 
 import pytest
@@ -77,12 +78,45 @@ def test_mms_text_chunks_preserve_every_word_within_the_inference_bound():
 
     assert len(chunks) > 1
     assert all(len(chunk) <= MMS_MAX_INFERENCE_TEXT_CHARS for chunk in chunks)
-    assert " ".join(chunks) == text
+    assert "".join(chunks) == text
 
 
-def test_mms_text_chunks_reject_an_overlong_unbroken_token():
-    with pytest.raises(ProviderError, match="overlong token"):
-        split_mms_inference_text("a" * 11, max_chars=10)
+def test_mms_text_chunks_split_a_long_hyphenated_token_without_data_loss():
+    text = "tâi-gí-sin-bûn-lâi-liáu"
+
+    chunks = split_mms_inference_text(text, max_chars=10)
+
+    assert chunks == ("tâi-gí-", "sin-bûn-", "lâi-liáu")
+    assert "".join(chunks) == text
+
+
+def test_mms_text_chunks_hard_split_without_orphaning_combining_marks():
+    text = "a" * 9 + "o\u0358" + "b" * 9
+
+    chunks = split_mms_inference_text(text, max_chars=10)
+
+    assert "".join(chunks) == text
+    assert all(len(chunk) <= 10 for chunk in chunks)
+    assert all(not unicodedata.combining(chunk[0]) for chunk in chunks)
+
+
+def test_mms_text_chunks_keep_separator_and_combining_mark_together():
+    text = "tâi-\u0358gí"
+
+    chunks = split_mms_inference_text(text, max_chars=4)
+
+    assert chunks == ("tâi", "-\u0358gí")
+    assert "".join(chunks) == text
+    assert all(not unicodedata.combining(chunk[0]) for chunk in chunks)
+
+
+def test_mms_text_chunks_hard_split_a_long_unbroken_token():
+    text = "a" * 21
+
+    chunks = split_mms_inference_text(text, max_chars=10)
+
+    assert chunks == ("a" * 10, "a" * 10, "a")
+    assert "".join(chunks) == text
 
 
 async def test_mms_synthesizes_bounded_chunks_and_combines_one_wav():
@@ -98,7 +132,7 @@ async def test_mms_synthesizes_bounded_chunks_and_combines_one_wav():
 
     result = await provider.synthesize("tsit hit sann", 0.9)
 
-    assert runtime.calls == [("tsit hit", 0.9), ("sann", 0.9)]
+    assert runtime.calls == [("tsit hit", 0.9), (" sann", 0.9)]
     assert runtime.max_samples == [10, 5]
     assert len(result.audio) == 64
     with wave.open(io.BytesIO(result.audio), "rb") as wav:
@@ -219,8 +253,14 @@ def test_transformers_runtime_rejects_tensor_before_tolist_allocation():
         def __call__(self, **kwargs):
             return SimpleNamespace(waveform=waveform)
 
+    tokenizer_calls = []
+
+    def tokenizer(**kwargs):
+        tokenizer_calls.append(kwargs)
+        return {"input_ids": Encoded()}
+
     runtime = TransformersMmsRuntime(
-        tokenizer=lambda **kwargs: {"input_ids": Encoded()},
+        tokenizer=tokenizer,
         model=Model(),
         torch=SimpleNamespace(inference_mode=nullcontext),
     )
@@ -228,6 +268,9 @@ def test_transformers_runtime_rejects_tensor_before_tolist_allocation():
     with pytest.raises(ProviderError, match="size limit"):
         runtime.synthesize("Tsit", 1.0, max_samples=10)
 
+    assert tokenizer_calls == [
+        {"text": "Tsit", "return_tensors": "pt", "normalize": False}
+    ]
     assert waveform.tolist_called is False
 
 

@@ -11,6 +11,7 @@ import math
 import sys
 import threading
 from typing import Protocol
+import unicodedata
 import wave
 
 from .base import AudioResult, ProviderError
@@ -66,7 +67,14 @@ class TransformersMmsRuntime:
         max_samples: int,
     ) -> tuple[Iterable[float], int]:
         try:
-            encoded = self.tokenizer(text=text, return_tensors="pt")
+            # POJ is already normalized and validated before it reaches MMS.
+            # Disabling the tokenizer's per-call normalization keeps separator
+            # characters at internal chunk boundaries instead of stripping them.
+            encoded = self.tokenizer(
+                text=text,
+                return_tensors="pt",
+                normalize=False,
+            )
             device = next(self.model.parameters()).device
             encoded = {key: value.to(device) for key, value in encoded.items()}
             with self.torch.inference_mode():
@@ -172,26 +180,48 @@ def split_mms_inference_text(
     text: str,
     max_chars: int = MMS_MAX_INFERENCE_TEXT_CHARS,
 ) -> tuple[str, ...]:
-    """Split validated POJ at word boundaries without truncating its content."""
+    """Split validated POJ without truncating text or separating tone marks."""
 
     if max_chars < 1:
         raise ValueError("max_chars must be positive")
-    words = text.split()
-    if not words:
+    if not text:
         raise ProviderError("MMS returned empty or invalid text")
-    if any(len(word) > max_chars for word in words):
-        raise ProviderError("MMS speech text contains an overlong token")
     chunks: list[str] = []
-    current = ""
-    for word in words:
-        combined = f"{current} {word}" if current else word
-        if len(combined) <= max_chars:
-            current = combined
-            continue
-        chunks.append(current)
-        current = word
-    if current:
-        chunks.append(current)
+    remaining = text
+    while len(remaining) > max_chars:
+        # Include a natural separator in the preceding chunk so joining every
+        # chunk reconstructs the provider output exactly. A long hyphenated POJ
+        # sequence is valid and common enough that it must not be mistaken for
+        # an unsafe overlong token.
+        separator = remaining.rfind(" ", 0, max_chars + 1)
+        if separator == max_chars:
+            # The prefix already ends at a word boundary. Keep the separator at
+            # the beginning of the next chunk because including it here would
+            # exceed the hard input bound.
+            cut = max_chars
+        elif separator >= 1:
+            cut = separator + 1
+        else:
+            separator = remaining.rfind("-", 0, max_chars)
+            cut = separator + 1 if separator >= 1 else max_chars
+
+        # Apply grapheme safety to every boundary, including natural separators.
+        # Move the base character and all adjacent marks together so no generated
+        # chunk begins with a detached POJ tone mark.
+        while cut > 0 and unicodedata.combining(remaining[cut]):
+            cut -= 1
+        if cut == 0:
+            raise ProviderError("MMS speech text contains an overlong grapheme")
+        chunks.append(remaining[:cut])
+        remaining = remaining[cut:]
+    if remaining:
+        chunks.append(remaining)
+    if (
+        not chunks
+        or any(not chunk for chunk in chunks)
+        or any(unicodedata.combining(chunk[0]) for chunk in chunks)
+    ):
+        raise ProviderError("MMS returned empty or invalid text")
     return tuple(chunks)
 
 

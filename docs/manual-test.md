@@ -119,7 +119,7 @@
 - [ ] 語速調整有效，不造成嚴重失真；停止操作能中止目前播放。
 - [ ] 文章分段後停頓自然，沒有漏句、重複或順序錯亂。
 - [ ] 使用超限fixture確認MMS在waveform tensor完成後、`.tolist()`前以`numel()`拒絕，WAV encoder也拒絕超限iterable／bytes；記錄這不是pre-forward guarantee，model forward仍可能先配置輸出／內部tensor，container memory cap才是額外邊界。
-- [ ] 使用超過200字元的合法POJ fixture確認MMS逐段呼叫runtime、每段不超過200字元、共用遞減sample budget與整份timeout，最後WAV只有一個RIFF header且frames為各段總和；sample rate不一致、空段或總bytes超限都fail closed，不回傳部分音訊。
+- [ ] 使用超過200字元的合法POJ fixtures分別覆蓋空白邊界、長連字號token與Unicode combining-safe hard boundary，確認優先順序、所有chunk可完整重組原文、每段不超過200字元且下一段不以combining mark開頭；再確認MMS逐段呼叫runtime、共用遞減sample budget與整份timeout，最後WAV只有一個RIFF header且frames為各段總和。Sample rate不一致、空段或總bytes超限都應fail closed，不回傳部分音訊。
 - [ ] 在2 GiB live-equivalent container以約200字元POJ做實機RSS smoke；再以完整async job確認多段MMS完成時container沒有OOM／restart。不要把單次smoke描述成所有文字與rate的記憶體保證。
 
 ## F. 母語者與長輩驗收

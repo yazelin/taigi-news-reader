@@ -48,7 +48,10 @@ the Internet location, all of these conditions are mandatory:
   are independent hard counters; do not describe byte limits as an audio
   duration guarantee.
 - Local MMS splits already-validated POJ into at most 200-character inference
-  chunks inside one worker, appends their bounded mono PCM, and emits one WAV.
+  chunks, preferring a whitespace boundary, then a hyphen boundary, and finally
+  a hard boundary that never leaves a Unicode combining mark at the start of
+  the next chunk. It preserves every character, disables redundant tokenizer
+  normalization, appends bounded mono PCM inside one worker, and emits one WAV.
   The whole job shares one 480-second timeout and one 16 MiB audio cap; neither
   the timeout nor the byte cap resets per inference chunk. This bounds each VITS
   forward without truncating the translation or multiplying quota jobs.
