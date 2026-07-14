@@ -357,3 +357,9 @@ chromium --headless --no-sandbox --disable-gpu --hide-scrollbars \
 ```
 
 發佈後應檢查 Pages、`robots.txt`、`sitemap.xml`、canonical、OG／Twitter meta 及分享圖都能由未登入瀏覽器取得，再把 Pages URL 貼到社群平台。
+
+## 追蹤與支持
+
+- GitHub：<https://github.com/yazelin/taigi-news-reader>
+- Facebook：<https://www.facebook.com/yaze.lin.gm>
+- Buy Me a Coffee：<https://buymeacoffee.com/yazelin>
