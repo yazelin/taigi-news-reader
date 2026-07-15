@@ -67,6 +67,17 @@ Chrome 播放、暫停、停止與選用的本機重播
 
 Qwen 不是必要條件，Groq 或 Gemini 也不是擴充套件的硬性依賴。`facebook/mms-tts-nan` 的模型授權是 **CC BY-NC 4.0**，本 repo 目前只把它用於非商業用途；若要商用，必須更換授權合適的 TTS 或另行取得授權。
 
+### 台語 TTS 引擎選型現況（2026-07）
+
+本專案 pipeline 是「繁中新聞 → 台羅／POJ 中間文字（可人工驗收）→ TTS」，因此換引擎的第一判準是**輸入介面是不是台羅**——只有吃台羅的引擎，發音才可控、可審聽。目前的評估：
+
+- **`facebook/mms-tts-nan`（現行預設）**：可本機自架、資料不出門，但發音準確度是已知弱點（外部專案 [taigi-teaching-agent](https://github.com/mathruffian-dot/taigi-teaching-agent) 的 A/B 審聽也獨立得出「不懂台語音韻」的結論）。維持「待母語者驗收」定位。
+- **意傳媠聲（ithuan.tw，免費展示服務）**：專業台語 TTS、輸入臺羅 KIP，與本專案架構同型，是目前最有希望的整句候選。限制：展示端點限流 1 IP 每分鐘 3 句（整篇新聞即時朗讀不可行，需工作佇列＋快取或洽談授權）；開源 self-host repo 已於 2024 封存，進不了「完全私有」那層。餵字要臺羅 KIP、標點要 ASCII。
+- **BreezyVoice-Taigi（聯發科）**：端到端「中文漢字 → 台語語音」，沒有台羅 g2p 層；自然度 MOS 5.0 但台語發音準確率僅 59.2%，專有名詞常帶華語腔（[Breeze Taigi 論文](https://arxiv.org/abs/2603.19259)）。權重未開源。發音不可控，與本專案「不冒充、可驗收」原則相衝，除非未來支援台羅輸入，否則不列為候選。
+- **[Breeze-ASR-26](https://huggingface.co/MediaTek-Research/Breeze-ASR-26)（已開源）**：反向用途——把 TTS 產出的音檔丟回 ASR 比對文字一致性，可做母語者審聽前的自動粗篩。
+
+審聽方法可參考 taigi-teaching-agent 的 `docs/tts-ab-test.md`：20 句按台語發音難點分類（入聲尾、濁聲母 b-/g-/j-、鼻化韻、連讀變調、華台同形詞），搭配離線評分頁。
+
 Chrome 路徑不再用一個可能持續數十秒的 `POST /v1/synthesize`，也不讓 offscreen document 負責網路請求。MV3 可能在約 30 秒後終止長時間 fetch；實測舊流程曾在約 39 秒失敗。現在由 service worker 建立非同步工作：`POST /v1/synthesis-jobs` 取得 UUID4 job id，以短 `GET /v1/synthesis-jobs/{job_id}` 輪詢，拿到完成音訊後立即 `DELETE`；offscreen 只把完成資料轉成 Blob 並控制 audio 播放。使用者按 STOP 時也會 `DELETE`。如果 provider 仍在不能安全中斷的 thread 中工作，DELETE 會立即對該 owner 隱藏並冪等確認 job，但 active／outstanding capacity 仍計到 provider 真正結束，避免用 create/delete loop 製造額外推論容量。
 
 `POST /v1/synthesize` 只保留給預設開放的 local development／診斷；Chrome 正常流程不依賴它。Strict invite-token mode 若同時設定 `TAIGI_ALLOW_DIRECT_SYNTHESIS=true` 會在啟動時 fail closed，private-beta ingress 也固定讓 direct route 回 404。
