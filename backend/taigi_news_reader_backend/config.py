@@ -112,6 +112,7 @@ class Settings:
     allow_localhost_origins: bool = True
     require_allowed_origin: bool = False
     require_access_token: bool = False
+    enforce_open_access_quota: bool = False
     allow_direct_synthesis: bool = True
     access_token_hashes: tuple[AccessTokenHash, ...] = field(
         default=(),
@@ -302,6 +303,9 @@ class Settings:
             ),
             require_access_token=_get_bool(
                 "TAIGI_REQUIRE_ACCESS_TOKEN", False
+            ),
+            enforce_open_access_quota=_get_bool(
+                "TAIGI_ENFORCE_OPEN_ACCESS_QUOTA", False
             ),
             allow_direct_synthesis=_get_bool(
                 "TAIGI_ALLOW_DIRECT_SYNTHESIS", True

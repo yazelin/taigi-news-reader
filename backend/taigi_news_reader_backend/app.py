@@ -191,7 +191,9 @@ def create_app(
         if settings.require_access_token
         else None
     )
-    if settings.require_access_token and quota_store is None:
+    if (
+        settings.require_access_token or settings.enforce_open_access_quota
+    ) and quota_store is None:
         quota_store = DailyQuotaStore.from_settings(settings)
 
     @asynccontextmanager
@@ -262,7 +264,10 @@ def create_app(
         if quota_store is None:
             return AccessResponse(authentication_required=False)
         snapshot = quota_store.status(access_subject(http_request))
-        return access_response(snapshot)
+        return access_response(
+            snapshot,
+            authentication_required=settings.require_access_token,
+        )
 
     if settings.allow_direct_synthesis:
 
@@ -279,7 +284,13 @@ def create_app(
                     len(request.text),
                 )
             try:
-                return await service.synthesize(request.text, request.rate)
+                if request.source_language == "zh-TW":
+                    return await service.synthesize(request.text, request.rate)
+                return await service.synthesize(
+                    request.text,
+                    request.rate,
+                    source_language=request.source_language,
+                )
             except ProviderError as exc:
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
@@ -301,6 +312,7 @@ def create_app(
             job_id = await job_manager.create(
                 request.text,
                 request.rate,
+                source_language=request.source_language,
                 owner=owner,
                 admit=(
                     lambda: reserve_quota(
@@ -398,7 +410,11 @@ def create_app(
                 headers=exc.response_headers(),
             ) from exc
 
-    def access_response(snapshot: QuotaSnapshot) -> AccessResponse:
+    def access_response(
+        snapshot: QuotaSnapshot,
+        *,
+        authentication_required: bool,
+    ) -> AccessResponse:
         limits = QuotaCounts(
             subject_jobs=snapshot.subject_job_limit,
             subject_characters=snapshot.subject_character_limit,
@@ -424,7 +440,7 @@ def create_app(
             ),
         )
         return AccessResponse(
-            authentication_required=True,
+            authentication_required=authentication_required,
             subject=snapshot.subject,
             utc_date=snapshot.utc_date,
             resets_at=snapshot.resets_at,

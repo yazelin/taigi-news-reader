@@ -8,7 +8,7 @@ import time
 from typing import Callable, Literal
 import uuid
 
-from .models import SynthesizeResponse
+from .models import SourceLanguage, SynthesizeResponse
 from .providers.base import ProviderError
 from .service import SynthesisService
 
@@ -107,6 +107,7 @@ class JobManager:
         text: str,
         rate: float,
         *,
+        source_language: SourceLanguage = "zh-TW",
         owner: str = "local-open-access",
         admit: Callable[[], None] | None = None,
     ) -> str:
@@ -142,7 +143,7 @@ class JobManager:
             record = _JobRecord(job_id=job_id, owner=owner)
             self._jobs[job_id] = record
             record.task = asyncio.create_task(
-                self._run(job_id, text, rate),
+                self._run(job_id, text, rate, source_language),
                 name=f"synthesis-job-{job_id}",
             )
             return job_id
@@ -249,9 +250,24 @@ class JobManager:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _run(self, job_id: str, text: str, rate: float) -> None:
+    async def _run(
+        self,
+        job_id: str,
+        text: str,
+        rate: float,
+        source_language: SourceLanguage,
+    ) -> None:
         try:
-            result = await self._service.synthesize(text, rate)
+            if source_language == "zh-TW":
+                # Preserve compatibility with custom/test services that
+                # implement the original two-argument protocol.
+                result = await self._service.synthesize(text, rate)
+            else:
+                result = await self._service.synthesize(
+                    text,
+                    rate,
+                    source_language=source_language,
+                )
         except asyncio.CancelledError:
             raise
         except ProviderError as exc:

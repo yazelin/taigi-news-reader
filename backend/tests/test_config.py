@@ -233,6 +233,7 @@ def test_access_token_subjects_and_hashes_must_be_unique():
 
 def test_access_and_quota_configuration_loads_from_environment(monkeypatch):
     monkeypatch.setenv("TAIGI_REQUIRE_ACCESS_TOKEN", "true")
+    monkeypatch.setenv("TAIGI_ENFORCE_OPEN_ACCESS_QUOTA", "true")
     monkeypatch.setenv("TAIGI_ALLOW_DIRECT_SYNTHESIS", "false")
     monkeypatch.setenv(
         "TAIGI_ACCESS_TOKEN_HASHES",
@@ -260,6 +261,7 @@ def test_access_and_quota_configuration_loads_from_environment(monkeypatch):
     ]
     assert settings.quota_database_path == "/tmp/quota.sqlite"
     assert settings.allow_direct_synthesis is False
+    assert settings.enforce_open_access_quota is True
     assert settings.daily_subject_job_limit == 7
     assert settings.daily_subject_character_limit == 8000
     assert settings.daily_global_job_limit == 30

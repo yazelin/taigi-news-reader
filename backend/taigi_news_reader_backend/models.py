@@ -1,16 +1,32 @@
 """HTTP API models."""
 
 from datetime import date, datetime
+import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
+
+
+SourceLanguage = Literal["zh-TW", "nan-Latn-TW"]
+
+_LATIN_LETTER_RE = re.compile(r"[A-Za-z\u00c0-\u024f\u1e00-\u1eff]")
+_NON_ROMANIZED_SCRIPT_RE = re.compile(
+    r"[\u2e80-\u2fff\u3040-\u30ff\u3100-\u312f\u31a0-\u31bf"
+    r"\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]"
+)
 
 
 class SynthesizeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     text: str = Field(min_length=1, max_length=5_000)
-    source_language: Literal["zh-TW"]
+    source_language: SourceLanguage
     target_language: Literal["nan-TW"]
     rate: float = Field(ge=0.5, le=1.5)
 
@@ -21,6 +37,20 @@ class SynthesizeRequest(BaseModel):
         if not value:
             raise ValueError("text must not be blank")
         return value
+
+    @model_validator(mode="after")
+    def validate_declared_input_script(self) -> "SynthesizeRequest":
+        if self.source_language != "nan-Latn-TW":
+            return self
+        if _NON_ROMANIZED_SCRIPT_RE.search(self.text):
+            raise ValueError(
+                "nan-Latn-TW input must already be Taiwanese Hokkien romanization, not Han text"
+            )
+        if not _LATIN_LETTER_RE.search(self.text):
+            raise ValueError(
+                "nan-Latn-TW input must contain at least one Latin-script letter"
+            )
+        return self
 
 
 class SynthesizeResponse(BaseModel):
@@ -35,6 +65,11 @@ class HealthResponse(BaseModel):
     mode: Literal["concrete", "mock"]
     translator: str
     synthesizer: str
+    source_languages: tuple[SourceLanguage, ...] = (
+        "zh-TW",
+        "nan-Latn-TW",
+    )
+    target_languages: tuple[Literal["nan-TW"], ...] = ("nan-TW",)
 
 
 class QuotaCounts(BaseModel):

@@ -195,6 +195,33 @@ async def test_job_transitions_pending_to_completed_with_wav_result():
     await manager.shutdown()
 
 
+async def test_async_job_preserves_direct_romanization_input_mode():
+    app = create_app(Settings(provider_mode="mock"))
+    direct_request = {
+        **REQUEST,
+        "text": "Guá beh kóng Tâi-gí.",
+        "source_language": "nan-Latn-TW",
+    }
+
+    created = await request(
+        app,
+        "POST",
+        "/v1/synthesis-jobs",
+        json=direct_request,
+    )
+    completed = await wait_for_status(
+        app,
+        created.json()["job_id"],
+        "completed",
+    )
+
+    assert completed.json()["result"]["taigi_text"] == direct_request["text"]
+    assert completed.json()["result"]["provider"] == (
+        "direct:nan-Latn-TW+mock:wav-synthesizer"
+    )
+    await app.state.job_manager.shutdown()
+
+
 async def test_provider_failure_retains_only_existing_safe_message():
     service = ImmediateService(ProviderError("Gemini translation request failed"))
     manager = JobManager(service)

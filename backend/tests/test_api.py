@@ -34,6 +34,8 @@ async def test_health_reports_explicit_mock_providers_without_loading_models(moc
         "mode": "mock",
         "translator": "mock:taigi-translator",
         "synthesizer": "mock:wav-synthesizer",
+        "source_languages": ["zh-TW", "nan-Latn-TW"],
+        "target_languages": ["nan-TW"],
     }
 
 
@@ -68,6 +70,48 @@ async def test_synthesize_returns_taigi_and_valid_base64_wav(mock_app, request_b
         assert wav.getsampwidth() == 2
         assert wav.getframerate() == 16_000
         assert wav.getnframes() > 0
+
+
+async def test_declared_taigi_romanization_bypasses_translation_and_is_labelled(
+    mock_app,
+    request_body,
+):
+    request_body.update(
+        text="Tâi-gí hó--lah!",
+        source_language="nan-Latn-TW",
+    )
+
+    response = await make_request(
+        mock_app,
+        "POST",
+        "/v1/synthesize",
+        json=request_body,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["taigi_text"] == "Tâi-gí hó--lah!"
+    assert response.json()["provider"] == (
+        "direct:nan-Latn-TW+mock:wav-synthesizer"
+    )
+
+
+@pytest.mark.parametrize("text", ["今天天氣真好", "1234 -- 5678"])
+async def test_declared_taigi_romanization_rejects_non_romanized_text(
+    mock_app,
+    request_body,
+    text,
+):
+    request_body.update(text=text, source_language="nan-Latn-TW")
+
+    response = await make_request(
+        mock_app,
+        "POST",
+        "/v1/synthesize",
+        json=request_body,
+    )
+
+    assert response.status_code == 422
+    assert "nan-Latn-TW" in response.text
 
 
 @pytest.mark.parametrize(

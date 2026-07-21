@@ -87,6 +87,60 @@ async def test_local_default_stays_open_and_reports_no_authentication():
     assert synthesis.status_code == 200
 
 
+async def test_open_access_can_enforce_durable_quota_without_bearer_token(
+    tmp_path,
+):
+    database = tmp_path / "open-quota.sqlite"
+    settings = Settings(
+        provider_mode="mock",
+        enforce_open_access_quota=True,
+        allow_direct_synthesis=False,
+        quota_database_path=str(database),
+        daily_subject_job_limit=1,
+        daily_subject_character_limit=100,
+        daily_global_job_limit=1,
+        daily_global_character_limit=100,
+    )
+    first_app = create_app(settings)
+
+    access = await request(first_app, "GET", "/v1/access")
+    accepted = await request(
+        first_app,
+        "POST",
+        "/v1/synthesis-jobs",
+        json=REQUEST,
+    )
+
+    assert access.status_code == 200
+    assert access.json()["authentication_required"] is False
+    assert access.json()["subject"] == "local-open-access"
+    assert access.json()["limits"]["global_jobs"] == 1
+    assert accepted.status_code == 202
+    await first_app.state.job_manager.shutdown()
+    first_app.state.quota_store.close()
+
+    # A fresh app/process view of the same SQLite file still rejects the next
+    # anonymous request. Open access does not mean unmetered access.
+    restarted_app = create_app(settings)
+    rejected = await request(
+        restarted_app,
+        "POST",
+        "/v1/synthesis-jobs",
+        json=REQUEST,
+    )
+
+    assert rejected.status_code == 429
+    assert rejected.headers["x-ratelimit-scope"] in {
+        "subject_jobs",
+        "global_jobs",
+    }
+    status = await request(restarted_app, "GET", "/v1/access")
+    assert status.json()["authentication_required"] is False
+    assert status.json()["used"]["global_jobs"] == 1
+    await restarted_app.state.job_manager.shutdown()
+    restarted_app.state.quota_store.close()
+
+
 async def test_strict_access_returns_same_generic_401_for_missing_and_wrong_token(
     tmp_path,
 ):
