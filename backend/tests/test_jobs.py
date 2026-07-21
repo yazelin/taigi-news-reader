@@ -200,7 +200,7 @@ async def test_async_job_preserves_direct_romanization_input_mode():
     app = create_app(Settings(provider_mode="mock"))
     direct_request = {
         **REQUEST,
-        "text": "Guá beh kóng Tâi-gí.",
+        "text": "Kin-á-ji̍t thiⁿ-khì chin hó。",
         "source_language": "nan-Latn-TW",
     }
 
@@ -216,10 +216,39 @@ async def test_async_job_preserves_direct_romanization_input_mode():
         "completed",
     )
 
-    assert completed.json()["result"]["taigi_text"] == direct_request["text"]
+    assert completed.json()["result"]["spoken_text"] == (
+        "kin-á-ji̍t thinn-khì chin hó"
+    )
+    assert completed.json()["result"]["taigi_text"] == (
+        "kin-á-ji̍t thinn-khì chin hó"
+    )
     assert completed.json()["result"]["provider"] == (
         "direct:nan-Latn-TW+mock:wav-synthesizer"
     )
+    await app.state.job_manager.shutdown()
+
+
+async def test_async_direct_romanization_fails_before_mms_on_unsupported_text():
+    app = create_app(Settings(provider_mode="mock"))
+    invalid_request = {
+        **REQUEST,
+        "text": "Tâi-gí 2026",
+        "source_language": "nan-Latn-TW",
+    }
+
+    created = await request(
+        app,
+        "POST",
+        "/v1/synthesis-jobs",
+        json=invalid_request,
+    )
+    failed = await wait_for_status(
+        app,
+        created.json()["job_id"],
+        "failed",
+    )
+
+    assert "romanization input is incompatible" in failed.json()["error"]
     await app.state.job_manager.shutdown()
 
 

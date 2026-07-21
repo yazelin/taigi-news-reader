@@ -11,6 +11,7 @@ from .models import (
     TargetLanguage,
 )
 from .providers.base import ProviderError, SpeechProvider, TranslationProvider
+from .providers.poj import normalize_and_validate_mms_poj
 
 
 class SynthesisService:
@@ -87,9 +88,13 @@ class SynthesisService:
             # The caller explicitly supplied Taiwanese Hokkien romanization.
             # Do not translate it again, and do not claim that the configured
             # translator participated in this result.
-            taigi_text = text
-            spoken_text = text
             provider = f"direct:nan-Latn-TW+{self.synthesizer.name}"
+            spoken_text = normalize_and_validate_mms_poj(
+                text,
+                provider=provider,
+                value_kind="romanization input",
+            )
+            taigi_text = spoken_text
             synthesizer = self.synthesizer
         elif source_language == "zh-TW" and target_language == "zh-TW":
             if self.mandarin_synthesizer is None:

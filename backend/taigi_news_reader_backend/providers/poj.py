@@ -45,7 +45,12 @@ MMS_NAN_FORMAT_TRANSLATION = str.maketrans(
 )
 
 
-def normalize_and_validate_mms_poj(value: str, *, provider: str) -> str:
+def normalize_and_validate_mms_poj(
+    value: str,
+    *,
+    provider: str,
+    value_kind: str = "translation",
+) -> str:
     """Return normalized POJ or fail before unsupported text reaches VITS.
 
     Common typography is made deterministic before validation. NFC composes
@@ -70,7 +75,7 @@ def normalize_and_validate_mms_poj(value: str, *, provider: str) -> str:
     # admitting any additional character into the final alphabet.
     normalized = unicodedata.normalize("NFC", " ".join(formatted.split())).lower()
     if not normalized:
-        raise ProviderError(f"{provider} returned an empty translation")
+        raise ProviderError(f"{provider} returned an empty {value_kind}")
     unsupported = sorted(set(normalized) - MMS_NAN_ALLOWED_CHARACTERS)
     if unsupported:
         rendered = ", ".join(
@@ -78,7 +83,7 @@ def normalize_and_validate_mms_poj(value: str, *, provider: str) -> str:
             for character in unsupported[:8]
         )
         raise ProviderError(
-            f"{provider} translation is incompatible with the MMS Min Nan POJ "
+            f"{provider} {value_kind} is incompatible with the MMS Min Nan POJ "
             f"vocabulary (unsupported: {rendered})"
         )
     return normalized

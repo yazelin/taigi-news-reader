@@ -100,7 +100,7 @@ async def test_declared_taigi_romanization_bypasses_translation_and_is_labelled(
     request_body,
 ):
     request_body.update(
-        text="Tâi-gí hó--lah!",
+        text="Kin-á-ji̍t thiⁿ-khì chin hó。",
         source_language="nan-Latn-TW",
     )
 
@@ -112,10 +112,35 @@ async def test_declared_taigi_romanization_bypasses_translation_and_is_labelled(
     )
 
     assert response.status_code == 200
-    assert response.json()["taigi_text"] == "Tâi-gí hó--lah!"
+    assert response.json()["spoken_text"] == (
+        "kin-á-ji̍t thinn-khì chin hó"
+    )
+    assert response.json()["taigi_text"] == (
+        "kin-á-ji̍t thinn-khì chin hó"
+    )
     assert response.json()["provider"] == (
         "direct:nan-Latn-TW+mock:wav-synthesizer"
     )
+
+
+async def test_direct_romanization_api_rejects_unsupported_mms_characters(
+    mock_app,
+    request_body,
+):
+    request_body.update(
+        text="Tâi-gí 2026",
+        source_language="nan-Latn-TW",
+    )
+
+    response = await make_request(
+        mock_app,
+        "POST",
+        "/v1/synthesize",
+        json=request_body,
+    )
+
+    assert response.status_code == 502
+    assert "romanization input is incompatible" in response.json()["detail"]
 
 
 @pytest.mark.parametrize("text", ["今天天氣真好", "1234 -- 5678"])
