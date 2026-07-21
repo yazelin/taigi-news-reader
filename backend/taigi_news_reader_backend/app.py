@@ -33,7 +33,9 @@ from .models import (
 )
 from .providers import (
     GeminiTranslator,
+    EdgeTtsSynthesizer,
     MmsTtsSynthesizer,
+    MockMandarinTtsSynthesizer,
     MockTranslator,
     MockTtsSynthesizer,
     OllamaTranslator,
@@ -123,7 +125,15 @@ class FinalizingJSONResponse(JSONResponse):
 
 def build_service(settings: Settings) -> SynthesisService:
     if settings.provider_mode == "mock":
-        return SynthesisService(MockTranslator(), MockTtsSynthesizer())
+        return SynthesisService(
+            MockTranslator(),
+            MockTtsSynthesizer(),
+            (
+                MockMandarinTtsSynthesizer()
+                if settings.mandarin_tts_provider == "edge"
+                else None
+            ),
+        )
     if settings.translator_provider == "ollama":
         translator = OllamaTranslator(
             base_url=settings.ollama_base_url,
@@ -162,7 +172,16 @@ def build_service(settings: Settings) -> SynthesisService:
             timeout_seconds=settings.remote_tts_timeout_seconds,
             max_audio_bytes=settings.max_audio_bytes,
         )
-    return SynthesisService(translator, synthesizer)
+    mandarin_synthesizer = (
+        EdgeTtsSynthesizer(
+            voice=settings.edge_tts_voice,
+            timeout_seconds=settings.edge_tts_timeout_seconds,
+            max_audio_bytes=settings.max_audio_bytes,
+        )
+        if settings.mandarin_tts_provider == "edge"
+        else None
+    )
+    return SynthesisService(translator, synthesizer, mandarin_synthesizer)
 
 
 def create_app(
@@ -257,6 +276,14 @@ def create_app(
             mode=settings.provider_mode,
             translator=service.translator.name,
             synthesizer=service.synthesizer.name,
+            mandarin_synthesizer=(
+                service.mandarin_synthesizer.name
+                if service.mandarin_synthesizer is not None
+                else None
+            ),
+            source_languages=service.source_languages,
+            target_languages=service.target_languages,
+            capabilities=service.capabilities,
         )
 
     @application.get("/v1/access", response_model=AccessResponse)
@@ -284,12 +311,16 @@ def create_app(
                     len(request.text),
                 )
             try:
-                if request.source_language == "zh-TW":
+                if (
+                    request.source_language == "zh-TW"
+                    and request.target_language == "nan-TW"
+                ):
                     return await service.synthesize(request.text, request.rate)
                 return await service.synthesize(
                     request.text,
                     request.rate,
                     source_language=request.source_language,
+                    target_language=request.target_language,
                 )
             except ProviderError as exc:
                 raise HTTPException(
@@ -313,6 +344,7 @@ def create_app(
                 request.text,
                 request.rate,
                 source_language=request.source_language,
+                target_language=request.target_language,
                 owner=owner,
                 admit=(
                     lambda: reserve_quota(

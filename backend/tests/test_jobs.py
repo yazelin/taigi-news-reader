@@ -97,6 +97,7 @@ async def wait_for_status(app, job_id: str, status: str) -> httpx.Response:
 def wav_result() -> SynthesizeResponse:
     wav = float_waveform_to_wav([0.0, 0.25, -0.25], 16_000)
     return SynthesizeResponse(
+        spoken_text="tâi-gí sin-bûn",
         taigi_text="tâi-gí sin-bûn",
         audio_base64=base64.b64encode(wav).decode("ascii"),
         mime_type="audio/wav",
@@ -218,6 +219,37 @@ async def test_async_job_preserves_direct_romanization_input_mode():
     assert completed.json()["result"]["taigi_text"] == direct_request["text"]
     assert completed.json()["result"]["provider"] == (
         "direct:nan-Latn-TW+mock:wav-synthesizer"
+    )
+    await app.state.job_manager.shutdown()
+
+
+async def test_async_job_dispatches_mandarin_backup_without_taigi_label():
+    app = create_app(
+        Settings(provider_mode="mock", mandarin_tts_provider="edge")
+    )
+    mandarin_request = {
+        **REQUEST,
+        "text": "今天天氣真好。",
+        "target_language": "zh-TW",
+    }
+
+    created = await request(
+        app,
+        "POST",
+        "/v1/synthesis-jobs",
+        json=mandarin_request,
+    )
+    completed = await wait_for_status(
+        app,
+        created.json()["job_id"],
+        "completed",
+    )
+
+    result = completed.json()["result"]
+    assert result["spoken_text"] == mandarin_request["text"]
+    assert result["taigi_text"] is None
+    assert result["provider"] == (
+        "direct:zh-TW+mock:online-mandarin-backup"
     )
     await app.state.job_manager.shutdown()
 

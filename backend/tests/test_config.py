@@ -15,6 +15,32 @@ def test_concrete_defaults_are_local_real_providers():
     assert settings.ollama_model == "qwen3:4b-instruct-2507-q4_K_M"
     assert settings.tts_provider == "mms"
     assert settings.mms_model == "facebook/mms-tts-nan"
+    assert settings.mandarin_tts_provider == "disabled"
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"mandarin_tts_provider": "unknown"}, "disabled.*edge"),
+        ({"edge_tts_voice": "en-US-AriaNeural"}, "zh-TW Neural"),
+        ({"edge_tts_timeout_seconds": 0}, "between 1 and 300"),
+    ],
+)
+def test_mandarin_backup_configuration_is_bounded(overrides, message):
+    with pytest.raises(ValueError, match=message):
+        Settings(**overrides)
+
+
+def test_mandarin_backup_configuration_loads_from_environment(monkeypatch):
+    monkeypatch.setenv("TAIGI_MANDARIN_TTS_PROVIDER", "edge")
+    monkeypatch.setenv("TAIGI_EDGE_TTS_VOICE", "zh-TW-YunJheNeural")
+    monkeypatch.setenv("TAIGI_EDGE_TTS_TIMEOUT_SECONDS", "30")
+
+    settings = Settings.from_env()
+
+    assert settings.mandarin_tts_provider == "edge"
+    assert settings.edge_tts_voice == "zh-TW-YunJheNeural"
+    assert settings.edge_tts_timeout_seconds == 30
 
 
 def test_hosted_translation_fails_startup_validation_when_unconfigured():

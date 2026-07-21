@@ -86,6 +86,9 @@ class Settings:
     provider_mode: str = "concrete"
     translator_provider: str = "ollama"
     tts_provider: str = "mms"
+    mandarin_tts_provider: str = "disabled"
+    edge_tts_voice: str = "zh-TW-HsiaoChenNeural"
+    edge_tts_timeout_seconds: float = 45.0
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3:4b-instruct-2507-q4_K_M"
     ollama_timeout_seconds: float = 45.0
@@ -143,6 +146,16 @@ class Settings:
             )
         if self.tts_provider not in {"mms", "remote"}:
             raise ValueError("tts_provider must be 'mms' or 'remote'")
+        if self.mandarin_tts_provider not in {"disabled", "edge"}:
+            raise ValueError(
+                "mandarin_tts_provider must be 'disabled' or 'edge'"
+            )
+        if not re.fullmatch(r"zh-TW-[A-Za-z]+Neural", self.edge_tts_voice):
+            raise ValueError("edge_tts_voice must be a zh-TW Neural voice")
+        if not 1 <= self.edge_tts_timeout_seconds <= 300:
+            raise ValueError(
+                "edge_tts_timeout_seconds must be between 1 and 300"
+            )
         if not self.ollama_base_url.startswith(("http://", "https://")):
             raise ValueError("ollama_base_url must be an http(s) URL")
         if self.mms_device != "cpu" and not self.mms_device.startswith("cuda"):
@@ -244,6 +257,18 @@ class Settings:
                 "TAIGI_TRANSLATOR_PROVIDER", "ollama"
             ).strip().lower(),
             tts_provider=os.getenv("TAIGI_TTS_PROVIDER", "mms").strip().lower(),
+            mandarin_tts_provider=os.getenv(
+                "TAIGI_MANDARIN_TTS_PROVIDER", "disabled"
+            ).strip().lower(),
+            edge_tts_voice=os.getenv(
+                "TAIGI_EDGE_TTS_VOICE", "zh-TW-HsiaoChenNeural"
+            ).strip(),
+            edge_tts_timeout_seconds=_get_float(
+                "TAIGI_EDGE_TTS_TIMEOUT_SECONDS",
+                45,
+                minimum=1,
+                maximum=300,
+            ),
             ollama_base_url=os.getenv(
                 "TAIGI_OLLAMA_BASE_URL", "http://127.0.0.1:11434"
             ).rstrip("/"),

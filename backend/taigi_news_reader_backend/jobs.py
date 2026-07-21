@@ -8,7 +8,7 @@ import time
 from typing import Callable, Literal
 import uuid
 
-from .models import SourceLanguage, SynthesizeResponse
+from .models import SourceLanguage, SynthesizeResponse, TargetLanguage
 from .providers.base import ProviderError
 from .service import SynthesisService
 
@@ -108,6 +108,7 @@ class JobManager:
         rate: float,
         *,
         source_language: SourceLanguage = "zh-TW",
+        target_language: TargetLanguage = "nan-TW",
         owner: str = "local-open-access",
         admit: Callable[[], None] | None = None,
     ) -> str:
@@ -143,7 +144,13 @@ class JobManager:
             record = _JobRecord(job_id=job_id, owner=owner)
             self._jobs[job_id] = record
             record.task = asyncio.create_task(
-                self._run(job_id, text, rate, source_language),
+                self._run(
+                    job_id,
+                    text,
+                    rate,
+                    source_language,
+                    target_language,
+                ),
                 name=f"synthesis-job-{job_id}",
             )
             return job_id
@@ -256,9 +263,10 @@ class JobManager:
         text: str,
         rate: float,
         source_language: SourceLanguage,
+        target_language: TargetLanguage,
     ) -> None:
         try:
-            if source_language == "zh-TW":
+            if source_language == "zh-TW" and target_language == "nan-TW":
                 # Preserve compatibility with custom/test services that
                 # implement the original two-argument protocol.
                 result = await self._service.synthesize(text, rate)
@@ -267,6 +275,7 @@ class JobManager:
                     text,
                     rate,
                     source_language=source_language,
+                    target_language=target_language,
                 )
         except asyncio.CancelledError:
             raise
@@ -338,7 +347,8 @@ class JobManager:
     def _retained_result_bytes(result: SynthesizeResponse) -> int:
         return (
             len(result.audio_base64.encode("ascii"))
-            + len(result.taigi_text.encode("utf-8"))
+            + len(result.spoken_text.encode("utf-8"))
+            + len((result.taigi_text or "").encode("utf-8"))
             + len(result.provider.encode("utf-8"))
             + len(result.mime_type)
         )

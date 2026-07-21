@@ -14,6 +14,8 @@ from pydantic import (
 
 
 SourceLanguage = Literal["zh-TW", "nan-Latn-TW"]
+TargetLanguage = Literal["nan-TW", "zh-TW"]
+SpeechMimeType = Literal["audio/wav", "audio/mpeg"]
 
 _LATIN_LETTER_RE = re.compile(r"[A-Za-z\u00c0-\u024f\u1e00-\u1eff]")
 _NON_ROMANIZED_SCRIPT_RE = re.compile(
@@ -27,7 +29,7 @@ class SynthesizeRequest(BaseModel):
 
     text: str = Field(min_length=1, max_length=5_000)
     source_language: SourceLanguage
-    target_language: Literal["nan-TW"]
+    target_language: TargetLanguage
     rate: float = Field(ge=0.5, le=1.5)
 
     @field_validator("text")
@@ -40,6 +42,14 @@ class SynthesizeRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_declared_input_script(self) -> "SynthesizeRequest":
+        if (self.source_language, self.target_language) not in {
+            ("zh-TW", "nan-TW"),
+            ("nan-Latn-TW", "nan-TW"),
+            ("zh-TW", "zh-TW"),
+        }:
+            raise ValueError(
+                "unsupported source_language and target_language combination"
+            )
         if self.source_language != "nan-Latn-TW":
             return self
         if _NON_ROMANIZED_SCRIPT_RE.search(self.text):
@@ -54,10 +64,25 @@ class SynthesizeRequest(BaseModel):
 
 
 class SynthesizeResponse(BaseModel):
-    taigi_text: str
+    spoken_text: str
+    taigi_text: str | None = None
     audio_base64: str
-    mime_type: Literal["audio/wav"]
+    mime_type: SpeechMimeType
     provider: str
+
+
+class SynthesisCapability(BaseModel):
+    source_language: SourceLanguage
+    target_language: TargetLanguage
+    mode: Literal[
+        "translate-to-taigi",
+        "read-taigi-romanization",
+        "online-mandarin-backup",
+    ]
+    provider: str
+    network_required: bool | None = None
+    unofficial: bool = False
+    sla_guaranteed: bool | None = None
 
 
 class HealthResponse(BaseModel):
@@ -65,11 +90,13 @@ class HealthResponse(BaseModel):
     mode: Literal["concrete", "mock"]
     translator: str
     synthesizer: str
+    mandarin_synthesizer: str | None = None
     source_languages: tuple[SourceLanguage, ...] = (
         "zh-TW",
         "nan-Latn-TW",
     )
-    target_languages: tuple[Literal["nan-TW"], ...] = ("nan-TW",)
+    target_languages: tuple[TargetLanguage, ...] = ("nan-TW",)
+    capabilities: tuple[SynthesisCapability, ...] = ()
 
 
 class QuotaCounts(BaseModel):

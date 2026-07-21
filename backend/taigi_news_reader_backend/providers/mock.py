@@ -40,3 +40,9 @@ class MockTtsSynthesizer:
 
     async def aclose(self) -> None:
         return None
+
+
+class MockMandarinTtsSynthesizer(MockTtsSynthesizer):
+    @property
+    def name(self) -> str:
+        return "mock:online-mandarin-backup"

@@ -34,8 +34,31 @@ async def test_health_reports_explicit_mock_providers_without_loading_models(moc
         "mode": "mock",
         "translator": "mock:taigi-translator",
         "synthesizer": "mock:wav-synthesizer",
+        "mandarin_synthesizer": None,
         "source_languages": ["zh-TW", "nan-Latn-TW"],
         "target_languages": ["nan-TW"],
+        "capabilities": [
+            {
+                "source_language": "zh-TW",
+                "target_language": "nan-TW",
+                "mode": "translate-to-taigi",
+                "provider": (
+                    "mock:taigi-translator+mock:wav-synthesizer"
+                ),
+                "network_required": None,
+                "unofficial": False,
+                "sla_guaranteed": None,
+            },
+            {
+                "source_language": "nan-Latn-TW",
+                "target_language": "nan-TW",
+                "mode": "read-taigi-romanization",
+                "provider": "direct:nan-Latn-TW+mock:wav-synthesizer",
+                "network_required": None,
+                "unofficial": False,
+                "sla_guaranteed": None,
+            },
+        ],
     }
 
 
@@ -114,12 +137,75 @@ async def test_declared_taigi_romanization_rejects_non_romanized_text(
     assert "nan-Latn-TW" in response.text
 
 
+async def test_mandarin_backup_is_separate_and_explicit_in_health(
+    request_body,
+):
+    app = create_app(
+        Settings(
+            provider_mode="mock",
+            mandarin_tts_provider="edge",
+        )
+    )
+    request_body["target_language"] = "zh-TW"
+
+    health = await make_request(app, "GET", "/health")
+    response = await make_request(
+        app,
+        "POST",
+        "/v1/synthesize",
+        json=request_body,
+    )
+
+    assert health.json()["synthesizer"] == "mock:wav-synthesizer"
+    assert health.json()["mandarin_synthesizer"] == (
+        "mock:online-mandarin-backup"
+    )
+    assert health.json()["target_languages"] == ["nan-TW", "zh-TW"]
+    mandarin_capability = health.json()["capabilities"][-1]
+    assert mandarin_capability == {
+        "source_language": "zh-TW",
+        "target_language": "zh-TW",
+        "mode": "online-mandarin-backup",
+        "provider": "direct:zh-TW+mock:online-mandarin-backup",
+        "network_required": True,
+        "unofficial": True,
+        "sla_guaranteed": False,
+    }
+    assert response.status_code == 200
+    assert response.json()["spoken_text"] == request_body["text"]
+    assert response.json()["taigi_text"] is None
+    assert response.json()["provider"] == (
+        "direct:zh-TW+mock:online-mandarin-backup"
+    )
+
+
+async def test_taigi_romanization_cannot_be_declared_as_mandarin(
+    mock_app,
+    request_body,
+):
+    request_body.update(
+        text="Tâi-gí hó.",
+        source_language="nan-Latn-TW",
+        target_language="zh-TW",
+    )
+
+    response = await make_request(
+        mock_app,
+        "POST",
+        "/v1/synthesize",
+        json=request_body,
+    )
+
+    assert response.status_code == 422
+    assert "unsupported source_language" in response.text
+
+
 @pytest.mark.parametrize(
     ("replacement", "field"),
     [
         ({"text": "   "}, "text"),
         ({"source_language": "en-US"}, "source_language"),
-        ({"target_language": "zh-TW"}, "target_language"),
+        ({"target_language": "en-US"}, "target_language"),
         ({"rate": 0.49}, "rate"),
         ({"rate": 1.51}, "rate"),
         ({"surprise": True}, "surprise"),
